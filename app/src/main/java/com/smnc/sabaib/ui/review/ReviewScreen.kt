@@ -8,13 +8,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.smnc.sabaib.model.sampleReceiptItems
+import androidx.compose.runtime.*
+import com.smnc.sabaib.model.ReceiptItem
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReviewScreen(
     onContinue: () -> Unit
 ) {
-    val subtotal = sampleReceiptItems.sumOf {
+    var receiptItems by remember {
+        mutableStateOf(sampleReceiptItems)
+    }
+
+    val subtotal = receiptItems.sumOf {
         it.price * it.quantity
     }
 
@@ -52,34 +58,52 @@ fun ReviewScreen(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(sampleReceiptItems) { item ->
+                items(
+                    items = receiptItems,
+                    key = { it.id }
+                ) { item ->
 
-                    Card(
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp)
-                        ) {
+                    EditableReceiptItem(
+                        item = item,
 
-                            Text(
-                                text = item.englishName,
-                                style = MaterialTheme.typography.titleMedium
-                            )
+                        onItemChange = { updatedItem ->
 
-                            Text(
-                                text = item.thaiName,
-                                style = MaterialTheme.typography.bodyMedium
-                            )
+                            receiptItems = receiptItems.map {
 
-                            Spacer(modifier = Modifier.height(8.dp))
+                                if (it.id == updatedItem.id) {
+                                    updatedItem
+                                } else {
+                                    it
+                                }
+                            }
+                        },
 
-                            Text(
-                                text = "฿${"%.2f".format(item.price)}",
-                                style = MaterialTheme.typography.titleMedium
-                            )
+                        onDelete = {
+
+                            receiptItems = receiptItems.filter {
+                                it.id != item.id
+                            }
                         }
-                    }
+                    )
                 }
+            }
+
+            OutlinedButton(
+                onClick = {
+
+                    val newItem = ReceiptItem(
+                        id = System.currentTimeMillis().toString(),
+                        thaiName = "",
+                        englishName = "New item",
+                        quantity = 1,
+                        price = 0.0
+                    )
+
+                    receiptItems = receiptItems + newItem
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("+ Add item")
             }
 
             ReceiptSummary(
