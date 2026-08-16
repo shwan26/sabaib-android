@@ -1,0 +1,11 @@
+package com.smnc.sabaib.navigation
+
+sealed class Screen(val route: String) {
+    data object Home : Screen("home")
+    data object Scan : Screen("scan")
+    data object Review : Screen("review")
+    data object Group : Screen("group")
+    data object Split : Screen("split")
+    data object Charges : Screen("charges")
+    data object Payment : Screen("payment")
+}
