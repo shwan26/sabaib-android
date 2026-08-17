@@ -77,14 +77,8 @@ fun GroupScreen(
 
         OutlinedButton(
             onClick = {
-
                 billViewModel.addParticipant(
-                    Participant(
-                        id = System.currentTimeMillis()
-                            .toString(),
-
-                        name = "Alex"
-                    )
+                    name = "Alex"
                 )
             }
         ) {
@@ -93,16 +87,9 @@ fun GroupScreen(
 
         OutlinedButton(
             onClick = {
-
                 billViewModel.addParticipant(
-                    Participant(
-                        id = System.currentTimeMillis()
-                            .toString(),
-
-                        name = "Friend $fakeUserNumber"
-                    )
+                    name = "Friend $fakeUserNumber"
                 )
-
                 fakeUserNumber++
             }
         ) {

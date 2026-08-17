@@ -16,5 +16,7 @@ data class Bill(
 
     val discount: Double = 0.0,
 
-    val total: Double = 0.0
+    val total: Double = 0.0,
+
+    val isVatIncluded: Boolean = false
 )

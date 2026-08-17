@@ -8,4 +8,7 @@ sealed class Screen(val route: String) {
     data object Split : Screen("split")
     data object Charges : Screen("charges")
     data object Payment : Screen("payment")
+    data object JoinBill : Screen("join_bill")
+    data object Participants : Screen("participants")
+    data object BillRoom: Screen("bill_room")
 }

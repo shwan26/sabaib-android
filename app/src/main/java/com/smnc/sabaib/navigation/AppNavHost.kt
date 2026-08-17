@@ -8,8 +8,11 @@ import androidx.navigation.compose.rememberNavController
 import com.smnc.sabaib.ui.charges.ChargesScreen
 import com.smnc.sabaib.ui.group.GroupScreen
 import com.smnc.sabaib.ui.home.HomeScreen
+import com.smnc.sabaib.ui.join.JoinBillScreen
+import com.smnc.sabaib.ui.participants.ParticipantsScreen
 import com.smnc.sabaib.ui.payment.PaymentScreen
 import com.smnc.sabaib.ui.review.ReviewScreen
+import com.smnc.sabaib.ui.room.BillRoomScreen
 import com.smnc.sabaib.ui.scan.ScanScreen
 import com.smnc.sabaib.ui.split.SplitScreen
 import com.smnc.sabaib.viewmodel.BillViewModel
@@ -61,6 +64,7 @@ fun AppNavHost() {
 
         composable(Screen.Split.route) {
             SplitScreen(
+                billViewModel = billViewModel,
                 onContinue = {
                     navController.navigate(Screen.Charges.route)
                 }
@@ -69,14 +73,50 @@ fun AppNavHost() {
 
         composable(Screen.Charges.route) {
             ChargesScreen(
+                billViewModel = billViewModel,
                 onContinue = {
                     navController.navigate(Screen.Payment.route)
                 }
             )
         }
 
+        composable(Screen.JoinBill.route) {
+            JoinBillScreen(
+                billViewModel = billViewModel,
+                onJoined = {
+                    navController.navigate(
+                        Screen.Participants.route
+                    )
+                },
+                onBack = {
+                    navController.popBackStack()
+                }
+            )
+        }
+
+        composable(Screen.Participants.route) {
+            ParticipantsScreen(
+                billViewModel = billViewModel,
+                onContinue = {
+                    navController.navigate(
+                        Screen.Split.route
+                    )
+                }
+            )
+        }
+
         composable(Screen.Payment.route) {
             PaymentScreen()
+        }
+        composable(Screen.BillRoom.route) {
+            BillRoomScreen(
+                billViewModel = billViewModel,
+                onStartSplitting = {
+                    navController.navigate(
+                        Screen.Split.route
+                    )
+                }
+            )
         }
     }
 }
