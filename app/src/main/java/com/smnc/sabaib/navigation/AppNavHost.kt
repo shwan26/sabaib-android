@@ -1,6 +1,7 @@
 package com.smnc.sabaib.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -11,11 +12,13 @@ import com.smnc.sabaib.ui.payment.PaymentScreen
 import com.smnc.sabaib.ui.review.ReviewScreen
 import com.smnc.sabaib.ui.scan.ScanScreen
 import com.smnc.sabaib.ui.split.SplitScreen
+import com.smnc.sabaib.viewmodel.BillViewModel
 
 @Composable
 fun AppNavHost() {
 
     val navController = rememberNavController()
+    val billViewModel: BillViewModel = viewModel()
 
     NavHost(
         navController = navController,
@@ -40,6 +43,7 @@ fun AppNavHost() {
 
         composable(Screen.Review.route) {
             ReviewScreen(
+                billViewModel = billViewModel,
                 onContinue = {
                     navController.navigate(Screen.Group.route)
                 }
@@ -48,6 +52,7 @@ fun AppNavHost() {
 
         composable(Screen.Group.route) {
             GroupScreen(
+                billViewModel = billViewModel,
                 onContinue = {
                     navController.navigate(Screen.Split.route)
                 }

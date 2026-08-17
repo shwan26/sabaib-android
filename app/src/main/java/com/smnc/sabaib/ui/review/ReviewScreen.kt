@@ -10,15 +10,35 @@ import androidx.compose.ui.unit.dp
 import com.smnc.sabaib.model.sampleReceiptItems
 import androidx.compose.runtime.*
 import com.smnc.sabaib.model.ReceiptItem
+import com.smnc.sabaib.viewmodel.BillViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReviewScreen(
-    onContinue: () -> Unit
+    billViewModel: BillViewModel,
+    onContinue: () -> Unit,
 ) {
     var receiptItems by remember {
         mutableStateOf(sampleReceiptItems)
     }
+
+    var restaurantName by remember {
+        mutableStateOf("")
+    }
+
+    OutlinedTextField(
+        value = restaurantName,
+        onValueChange = {
+            restaurantName = it
+        },
+        label = {
+            Text("Restaurant name")
+        },
+        placeholder = {
+            Text("e.g. Kub Kao' Kub Pla")
+        },
+        modifier = Modifier.fillMaxWidth()
+    )
 
     val subtotal = receiptItems.sumOf {
         it.price * it.quantity
@@ -113,7 +133,16 @@ fun ReviewScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             Button(
-                onClick = onContinue,
+                onClick = {
+                    billViewModel.updateRestaurantName(
+                        restaurantName
+                    )
+
+                    billViewModel.updateItems(
+                        receiptItems
+                    )
+                    onContinue()
+                },
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text("Continue")

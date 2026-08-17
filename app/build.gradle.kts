@@ -38,6 +38,7 @@ android {
 dependencies {
     // IMPORTANT: Compose BOM for normal app dependencies
     implementation(platform(libs.androidx.compose.bom))
+    implementation(libs.androidx.material3)
 
     implementation(libs.androidx.navigation.compose)
 
