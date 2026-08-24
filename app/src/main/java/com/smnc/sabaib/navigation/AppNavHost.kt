@@ -1,14 +1,24 @@
 package com.smnc.sabaib.navigation
 
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import com.smnc.sabaib.data.AuthRepository
 import com.smnc.sabaib.ui.charges.ChargesScreen
 import com.smnc.sabaib.ui.group.GroupScreen
 import com.smnc.sabaib.ui.home.HomeScreen
 import com.smnc.sabaib.ui.join.JoinBillScreen
+import com.smnc.sabaib.ui.login.LoginScreen
 import com.smnc.sabaib.ui.participants.ParticipantsScreen
 import com.smnc.sabaib.ui.payment.PaymentScreen
 import com.smnc.sabaib.ui.review.ReviewScreen
@@ -22,16 +32,33 @@ fun AppNavHost() {
 
     val navController = rememberNavController()
     val billViewModel: BillViewModel = viewModel()
+    val authRepository = remember { AuthRepository() }
 
     NavHost(
         navController = navController,
-        startDestination = Screen.Home.route
+        startDestination = Screen.Home.route,
+        enterTransition = {
+            slideInHorizontally(initialOffsetX = { it }) + fadeIn()
+        },
+        exitTransition = {
+            slideOutHorizontally(targetOffsetX = { -it }) + fadeOut()
+        },
+        popEnterTransition = {
+            slideInHorizontally(initialOffsetX = { -it }) + fadeIn()
+        },
+        popExitTransition = {
+            slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
+        }
     ) {
 
         composable(Screen.Home.route) {
             HomeScreen(
                 onScanClick = {
-                    navController.navigate(Screen.Scan.route)
+                    if (authRepository.isLoggedIn()) {
+                        navController.navigate(Screen.Scan.route)
+                    } else {
+                        navController.navigate("login/scan")
+                    }
                 },
                 onJoinBill = {
                     navController.navigate(Screen.JoinBillWithCode.route)
@@ -39,13 +66,40 @@ fun AppNavHost() {
             )
         }
 
-        composable(Screen.Scan.route) {
-            ScanScreen(
-                billViewModel = billViewModel,
-                onContinue = {
-                    navController.navigate(Screen.Review.route)
+        composable(
+            route = "login/{redirect}",
+            arguments = listOf(navArgument("redirect") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val redirect = backStackEntry.arguments?.getString("redirect") ?: "home"
+            LoginScreen(
+                onAuthSuccess = {
+                    val target = when (redirect) {
+                        "scan" -> Screen.Scan.route
+                        else -> Screen.Home.route
+                    }
+                    navController.navigate(target) {
+                        popUpTo("login/$redirect") { inclusive = true }
+                    }
                 }
             )
+        }
+
+        composable(Screen.Scan.route) {
+            // Guard again in case of deep link or back navigation into this route
+            if (authRepository.isLoggedIn()) {
+                ScanScreen(
+                    billViewModel = billViewModel,
+                    onContinue = {
+                        navController.navigate(Screen.Review.route)
+                    }
+                )
+            } else {
+                LaunchedEffect(Unit) {
+                    navController.navigate("login/scan") {
+                        popUpTo(Screen.Scan.route) { inclusive = true }
+                    }
+                }
+            }
         }
 
         composable(Screen.Review.route) {
@@ -85,7 +139,7 @@ fun AppNavHost() {
         }
 
         composable(Screen.JoinBillWithCode.route) {
-            backStackEntry ->
+                backStackEntry ->
 
             val code =
                 backStackEntry.arguments
