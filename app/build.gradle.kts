@@ -1,12 +1,25 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+}
+val localProperties = Properties().apply {
+    val file = rootProject.file("local.properties")
+    if (file.exists()) {
+        file.inputStream().use { load(it) }
+    }
 }
 
 android {
     namespace = "com.smnc.sabaib"
     compileSdk {
         version = release(37)
+    }
+
+    buildFeatures {
+        compose = true
+        buildConfig = true
     }
 
     defaultConfig {
@@ -17,6 +30,18 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        buildConfigField(
+            "String",
+            "SUPABASE_URL",
+            "\"${localProperties.getProperty("SUPABASE_URL")}\""
+        )
+
+        buildConfigField(
+            "String",
+            "SUPABASE_KEY",
+            "\"${localProperties.getProperty("SUPABASE_KEY")}\""
+        )
     }
 
     buildTypes {
@@ -30,12 +55,18 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
-    buildFeatures {
-        compose = true
-    }
+
+
 }
 
 dependencies {
+    implementation("com.google.zxing:core:3.5.4")
+    implementation(platform("io.github.jan-tennert.supabase:bom:3.7.0"))
+
+    implementation("io.github.jan-tennert.supabase:auth-kt")
+    implementation("io.github.jan-tennert.supabase:postgrest-kt")
+
+    implementation("io.ktor:ktor-client-android:3.5.2")
     // IMPORTANT: Compose BOM for normal app dependencies
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.material3)

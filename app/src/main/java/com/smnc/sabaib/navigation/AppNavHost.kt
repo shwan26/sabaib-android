@@ -32,6 +32,9 @@ fun AppNavHost() {
             HomeScreen(
                 onScanClick = {
                     navController.navigate(Screen.Scan.route)
+                },
+                onJoinBill = {
+                    navController.navigate(Screen.JoinBillWithCode.route)
                 }
             )
         }
@@ -56,8 +59,8 @@ fun AppNavHost() {
         composable(Screen.Group.route) {
             GroupScreen(
                 billViewModel = billViewModel,
-                onContinue = {
-                    navController.navigate(Screen.Split.route)
+                onGroupCreated = {
+                    navController.navigate(Screen.BillRoom.route)
                 }
             )
         }
@@ -80,9 +83,17 @@ fun AppNavHost() {
             )
         }
 
-        composable(Screen.JoinBill.route) {
+        composable(Screen.JoinBillWithCode.route) {
+            backStackEntry ->
+
+            val code =
+                backStackEntry.arguments
+                    ?.getString("code")
+                    .orEmpty()
+
             JoinBillScreen(
                 billViewModel = billViewModel,
+                initialCode = code,
                 onJoined = {
                     navController.navigate(
                         Screen.Participants.route

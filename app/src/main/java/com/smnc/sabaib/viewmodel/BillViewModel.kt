@@ -63,11 +63,23 @@ class BillViewModel : ViewModel() {
         name: String,
         isHost: Boolean = false
     ) {
-        if (name.isBlank()) return
+        val trimmedName = name.trim()
+
+        if (trimmedName.isBlank()) return
+
+        val alreadyExists =
+            _participants.value.any { participant ->
+                participant.name.equals(
+                    trimmedName,
+                    ignoreCase = true
+                )
+            }
+
+        if (alreadyExists) return
 
         val participant = Participant(
             id = UUID.randomUUID().toString(),
-            name = name.trim(),
+            name = trimmedName,
             isHost = isHost
         )
 
@@ -422,5 +434,11 @@ class BillViewModel : ViewModel() {
         ) < 0.01
     }
 
+    fun isValidGroupCode(code: String): Boolean {
 
+        return _bill.value.code.equals(
+            code.trim(),
+            ignoreCase = true
+        )
+    }
 }

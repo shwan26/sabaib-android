@@ -27,6 +27,7 @@ import com.smnc.sabaib.viewmodel.BillViewModel
 @Composable
 fun JoinBillScreen(
     billViewModel: BillViewModel,
+    initialCode: String = "",
     onJoined: () -> Unit,
     onBack: () -> Unit
 ) {
@@ -36,6 +37,10 @@ fun JoinBillScreen(
 
     var name by remember {
         mutableStateOf("")
+    }
+
+    var errorMessage by remember {
+        mutableStateOf<String?>(null)
     }
 
     Scaffold(
@@ -107,17 +112,45 @@ fun JoinBillScreen(
 
             Button(
                 onClick = {
-                    billViewModel.addParticipant(
-                        name = name
-                    )
 
-                    onJoined()
+                    if (
+                        billViewModel.isValidGroupCode(
+                            billCode
+                        )
+                    ) {
+
+                        billViewModel.addParticipant(
+                            name = name
+                        )
+
+                        errorMessage = null
+
+                        onJoined()
+
+                    } else {
+
+                        errorMessage =
+                            "Group code not found"
+                    }
                 },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = billCode.isNotBlank() &&
-                        name.isNotBlank()
+                enabled =
+                    billCode.isNotBlank() &&
+                            name.isNotBlank()
             ) {
                 Text("Join Bill")
+            }
+
+            errorMessage?.let { message ->
+
+                Spacer(
+                    modifier = Modifier.height(8.dp)
+                )
+
+                Text(
+                    text = message,
+                    color = MaterialTheme.colorScheme.error
+                )
             }
         }
     }

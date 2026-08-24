@@ -28,7 +28,7 @@ import com.smnc.sabaib.viewmodel.BillViewModel
 @Composable
 fun GroupScreen(
     billViewModel: BillViewModel,
-    onContinue: () -> Unit
+    onGroupCreated: () -> Unit
 ) {
     val participants by billViewModel.participants
     val bill by billViewModel.bill
@@ -44,8 +44,26 @@ fun GroupScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .padding(24.dp)
     ) {
+
+        Text(
+            text = "Create your group",
+            style = MaterialTheme.typography.headlineMedium
+        )
+
+        Spacer(
+            modifier = Modifier.height(8.dp)
+        )
+
+        Text(
+            text = "Enter your name before inviting your friends."
+        )
+
+        Spacer(
+            modifier = Modifier.height(24.dp)
+        )
+
         OutlinedTextField(
             value = hostName,
             onValueChange = {
@@ -62,38 +80,19 @@ fun GroupScreen(
 
         Button(
             onClick = {
-
                 if (hostName.isNotBlank()) {
 
                     billViewModel.createHost(
                         hostName.trim()
                     )
+
+                    onGroupCreated()
                 }
             },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            enabled = hostName.isNotBlank()
         ) {
             Text("Create group")
-        }
-
-        OutlinedButton(
-            onClick = {
-                billViewModel.addParticipant(
-                    name = "Alex"
-                )
-            }
-        ) {
-            Text("Add Alex (Test)")
-        }
-
-        OutlinedButton(
-            onClick = {
-                billViewModel.addParticipant(
-                    name = "Friend $fakeUserNumber"
-                )
-                fakeUserNumber++
-            }
-        ) {
-            Text("+ Add test friend")
         }
 
         Text(
@@ -126,44 +125,5 @@ fun GroupScreen(
             style =
                 MaterialTheme.typography.headlineMedium
         )
-
-        participants.forEach { participant ->
-
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(
-                        vertical = 4.dp
-                    )
-            ) {
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement =
-                        Arrangement.SpaceBetween
-                ) {
-
-                    Text(
-                        text = participant.name
-                    )
-
-                    if (participant.isHost) {
-                        Text(
-                            text = "Host"
-                        )
-                    }
-                }
-            }
-        }
-
-        Button(
-            onClick = onContinue,
-            enabled = participants.isNotEmpty(),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Continue to Split")
-        }
     }
 }
