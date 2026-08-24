@@ -27,6 +27,38 @@ fun EditableReceiptItem(
             modifier = Modifier.padding(16.dp)
         ) {
 
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+
+                Column(modifier = Modifier.weight(1f)) {
+
+                    if (!isEditing) {
+                        Text(
+                            text = item.englishName,
+                            style = MaterialTheme.typography.titleMedium
+                        )
+
+                        if (item.thaiName.isNotBlank()) {
+                            Text(
+                                text = item.thaiName,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    }
+                }
+
+                TextButton(
+                    onClick = onDelete,
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Text("Remove")
+                }
+            }
 
             if (isEditing) {
 
@@ -94,25 +126,9 @@ fun EditableReceiptItem(
                     ) {
                         Text("Done")
                     }
-
-                    OutlinedButton(
-                        onClick = onDelete
-                    ) {
-                        Text("Delete")
-                    }
                 }
 
             } else {
-
-                Text(
-                    text = item.englishName,
-                    style = MaterialTheme.typography.titleMedium
-                )
-
-                Text(
-                    text = item.thaiName,
-                    style = MaterialTheme.typography.bodyMedium
-                )
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
