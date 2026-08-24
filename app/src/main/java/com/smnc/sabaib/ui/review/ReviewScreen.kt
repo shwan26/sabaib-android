@@ -18,12 +18,19 @@ fun ReviewScreen(
     billViewModel: BillViewModel,
     onContinue: () -> Unit,
 ) {
+    // Seed from whatever the scan step already produced (or from an
+    // in-progress edit if the user navigated back here). Only fall back
+    // to sample data if there's genuinely nothing yet, e.g. when jumping
+    // straight to this screen during development.
     var receiptItems by remember {
-        mutableStateOf(sampleReceiptItems)
+        val existingItems = billViewModel.bill.value.items
+        mutableStateOf(
+            if (existingItems.isNotEmpty()) existingItems else sampleReceiptItems
+        )
     }
 
     var restaurantName by remember {
-        mutableStateOf("")
+        mutableStateOf(billViewModel.bill.value.restaurantName)
     }
 
     OutlinedTextField(
@@ -174,4 +181,3 @@ fun ReceiptSummary(
         }
     }
 }
-

@@ -61,6 +61,8 @@ android {
 
 dependencies {
     implementation("com.google.zxing:core:3.5.4")
+    implementation("com.google.mlkit:text-recognition:16.0.1")
+    implementation(libs.androidx.exifinterface)
     implementation(platform("io.github.jan-tennert.supabase:bom:3.7.0"))
 
     implementation("io.github.jan-tennert.supabase:auth-kt")

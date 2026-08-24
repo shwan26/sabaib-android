@@ -41,6 +41,7 @@ fun AppNavHost() {
 
         composable(Screen.Scan.route) {
             ScanScreen(
+                billViewModel = billViewModel,
                 onContinue = {
                     navController.navigate(Screen.Review.route)
                 }
