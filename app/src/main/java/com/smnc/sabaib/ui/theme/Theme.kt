@@ -9,35 +9,78 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
+    primary = SabaiYellow,
+    onPrimary = SabaiBlack,
+    primaryContainer = SabaiYellowDark,
+    onPrimaryContainer = SabaiWhite,
+
+    secondary = SabaiNavyLight,
+    onSecondary = SabaiWhite,
+    secondaryContainer = SabaiNavy,
+    onSecondaryContainer = SabaiYellowLight,
+
+    tertiary = SabaiBeakOrange,
+    onTertiary = SabaiBlack,
+    tertiaryContainer = SabaiNavyDark,
+    onTertiaryContainer = SabaiYellowLight,
+
+    background = SabaiBlack,
+    onBackground = SabaiOffWhite,
+
+    surface = SabaiCharcoal,
+    onSurface = SabaiOffWhite,
+    surfaceVariant = SabaiNavyDark,
+    onSurfaceVariant = SabaiLightGray,
+
+    outline = SabaiGray,
+
+    error = SabaiErrorLight,
+    onError = SabaiBlack,
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
+    primary = SabaiNavy,
+    onPrimary = SabaiWhite,
+    primaryContainer = SabaiYellow,
+    onPrimaryContainer = SabaiNavyDark,
 
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
+    secondary = SabaiYellow,
+    onSecondary = SabaiBlack,
+    secondaryContainer = SabaiYellowLight,
+    onSecondaryContainer = SabaiNavyDark,
+
+    tertiary = SabaiBeakOrange,
+    onTertiary = SabaiBlack,
+    tertiaryContainer = SabaiYellowLight,
+    onTertiaryContainer = SabaiNavyDark,
+
+    background = SabaiOffWhite,
+    onBackground = SabaiBlack,
+
+    surface = SabaiWhite,
+    onSurface = SabaiBlack,
+    surfaceVariant = SabaiLightGray,
+    onSurfaceVariant = SabaiCharcoal,
+
+    outline = SabaiGray,
+
+    error = SabaiError,
+    onError = SabaiWhite,
 )
 
 @Composable
 fun SabaiBTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
+    // Dynamic color defaults to false so the brand palette (yellow/navy/white)
+    // is always used instead of the device wallpaper-derived colors.
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
@@ -48,6 +91,16 @@ fun SabaiBTheme(
 
         darkTheme -> DarkColorScheme
         else -> LightColorScheme
+    }
+
+    val view = LocalView.current
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = (view.context as Activity).window
+            window.statusBarColor = colorScheme.primary.toArgb()
+            WindowCompat.getInsetsController(window, view)
+                .isAppearanceLightStatusBars = !darkTheme
+        }
     }
 
     MaterialTheme(

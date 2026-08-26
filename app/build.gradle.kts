@@ -72,6 +72,10 @@ dependencies {
 
 
     implementation("io.ktor:ktor-client-android:3.5.2")
+
+    // GIF playback for Compose (animated penguin avatar)
+    implementation("io.coil-kt.coil3:coil-compose:3.3.0")
+    implementation("io.coil-kt.coil3:coil-gif:3.3.0")
     // IMPORTANT: Compose BOM for normal app dependencies
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.material3)
