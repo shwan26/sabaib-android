@@ -320,61 +320,6 @@ class BillViewModel : ViewModel() {
         }
     }
 
-    fun selectEveryoneForItem(
-        itemId: String
-    ) {
-
-        val allParticipantIds =
-            _participants.value
-                .map { it.id }
-                .toSet()
-
-        val existing =
-            _itemSelections.value.find {
-                it.itemId == itemId
-            }
-
-        if (existing == null) {
-
-            _itemSelections.value += ItemSelection(
-                                        itemId = itemId,
-                                        participantIds =
-                                            allParticipantIds
-                                    )
-
-        } else {
-
-            _itemSelections.value =
-                _itemSelections.value.map {
-
-                    if (it.itemId == itemId) {
-                        it.copy(
-                            participantIds =
-                                allParticipantIds
-                        )
-                    } else {
-                        it
-                    }
-                }
-        }
-    }
-
-    fun clearItemSelection(
-        itemId: String
-    ) {
-        _itemSelections.value =
-            _itemSelections.value.map { selection ->
-
-                if (selection.itemId == itemId) {
-                    selection.copy(
-                        participantIds = emptySet()
-                    )
-                } else {
-                    selection
-                }
-            }
-    }
-
     fun calculateParticipantSplits():
             List<ParticipantSplit> {
 
@@ -554,14 +499,6 @@ class BillViewModel : ViewModel() {
             .sumOf {
                 it.total
             }
-    }
-
-    fun isFinalTotalBalanced(): Boolean {
-
-        return kotlin.math.abs(
-            participantTotalsSum() -
-                    _bill.value.total
-        ) < 0.01
     }
 
     fun isValidGroupCode(code: String): Boolean {

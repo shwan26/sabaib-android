@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
@@ -33,6 +34,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -102,6 +104,13 @@ fun BillRoomScreen(
                 .padding(paddingValues)
                 .padding(horizontal = 24.dp)
         ) {
+
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+            ) {
+
             Spacer(modifier = Modifier.height(16.dp))
 
             Column(
@@ -257,14 +266,17 @@ fun BillRoomScreen(
                         participants.forEachIndexed { index, participant ->
                             ParticipantChip(
                                 participant = participant,
-                                color = avatarColors[index % avatarColors.size]
+                                color = avatarColors[index % avatarColors.size],
+                                onRemove = {
+                                    billViewModel.removeParticipant(participant.id)
+                                }
                             )
                         }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.weight(1f))
+            }
 
             Button(
                 onClick = onContinue,
@@ -288,13 +300,14 @@ fun BillRoomScreen(
 @Composable
 private fun ParticipantChip(
     participant: Participant,
-    color: Color
+    color: Color,
+    onRemove: () -> Unit
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .background(SabaiWhite, RoundedCornerShape(50))
-            .padding(start = 4.dp, end = 12.dp, top = 4.dp, bottom = 4.dp)
+            .padding(start = 4.dp, end = if (participant.isHost) 12.dp else 4.dp, top = 4.dp, bottom = 4.dp)
     ) {
         Box(
             modifier = Modifier
@@ -315,5 +328,19 @@ private fun ParticipantChip(
         Text(
             text = if (participant.isHost) "You" else participant.name
         )
+
+        if (!participant.isHost) {
+            IconButton(
+                onClick = onRemove,
+                modifier = Modifier.size(24.dp)
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.delete_24),
+                    contentDescription = "Remove ${participant.name}",
+                    tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
     }
 }

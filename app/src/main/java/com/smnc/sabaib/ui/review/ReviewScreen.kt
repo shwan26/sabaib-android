@@ -58,20 +58,22 @@ fun ReviewScreen(
     var vatIncluded by remember { mutableStateOf(false) }
     var vatPercent by remember { mutableStateOf("7") }
     var otherCharges by remember { mutableStateOf("0") }
+    var discount by remember { mutableStateOf("0") }
 
     val subtotal = receiptItems.sumOf {
         it.price * it.quantity
     }
 
-    val otherChargesAmount = otherCharges.toDoubleOrNull() ?: 0.0
-    val vatRate = (vatPercent.toDoubleOrNull() ?: 0.0) / 100
+    val otherChargesAmount = if (vatIncluded) 0.0 else otherCharges.toDoubleOrNull() ?: 0.0
+    val vatRate = if (vatIncluded) 0.0 else (vatPercent.toDoubleOrNull() ?: 0.0) / 100
     val otherChargesRate = if (subtotal > 0) otherChargesAmount / subtotal else 0.0
+    val discountAmount = discount.toDoubleOrNull() ?: 0.0
 
     val preview = ChargeCalculator.calculate(
         subtotal = subtotal,
         serviceChargeRate = otherChargesRate,
         vatRate = vatRate,
-        discount = 0.0,
+        discount = discountAmount,
         isVatIncluded = vatIncluded
     )
 
@@ -242,6 +244,7 @@ fun ReviewScreen(
                             onValueChange = { vatPercent = it },
                             suffix = { Text("%") },
                             singleLine = true,
+                            enabled = !vatIncluded,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             shape = inputFieldShape,
                             colors = inputFieldColors,
@@ -262,6 +265,30 @@ fun ReviewScreen(
                         OutlinedTextField(
                             value = otherCharges,
                             onValueChange = { otherCharges = it },
+                            prefix = { Text("฿") },
+                            singleLine = true,
+                            enabled = !vatIncluded,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            shape = inputFieldShape,
+                            colors = inputFieldColors,
+                            modifier = Modifier.width(100.dp)
+                        )
+                    }
+                }
+
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+
+                        Text("Discount", style = MaterialTheme.typography.bodyLarge)
+
+                        OutlinedTextField(
+                            value = discount,
+                            onValueChange = { discount = it },
+                            prefix = { Text("฿") },
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             shape = inputFieldShape,
@@ -280,6 +307,25 @@ fun ReviewScreen(
                 HorizontalDivider()
 
                 Spacer(modifier = Modifier.height(12.dp))
+
+                if (discountAmount > 0) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "Discount",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+
+                        Text(
+                            text = "-฿${"%.1f".format(discountAmount)}",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -307,7 +353,7 @@ fun ReviewScreen(
                         billViewModel.updateCharges(
                             serviceChargeRate = otherChargesRate,
                             vatRate = vatRate,
-                            discount = 0.0,
+                            discount = discountAmount,
                             isVatIncluded = vatIncluded
                         )
                         billViewModel.createHost("You")
