@@ -3,6 +3,7 @@ package com.smnc.sabaib.ui.login
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.smnc.sabaib.data.AuthRepository
+import com.smnc.sabaib.data.toUserMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -33,7 +34,7 @@ class ForgotPasswordViewModel(
                 repository.sendPasswordResetEmail(email.trim())
                 _uiState.value = ForgotPasswordUiState.Success
             } catch (e: Exception) {
-                _uiState.value = ForgotPasswordUiState.Error(e.message ?: "Failed to send reset email")
+                _uiState.value = ForgotPasswordUiState.Error(e.toUserMessage())
             }
         }
     }
