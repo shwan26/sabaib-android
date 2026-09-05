@@ -26,6 +26,10 @@ class AuthRepository {
         auth.signOut()
     }
 
+    suspend fun sendPasswordResetEmail(email: String) {
+        auth.resetPasswordForEmail(email)
+    }
+
     fun isLoggedIn(): Boolean {
         return auth.currentSessionOrNull() != null
     }

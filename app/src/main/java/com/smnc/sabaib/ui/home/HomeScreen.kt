@@ -1,6 +1,7 @@
 package com.smnc.sabaib.ui.home
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -10,7 +11,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -21,6 +26,8 @@ import coil3.ImageLoader
 import coil3.compose.AsyncImage
 import coil3.gif.GifDecoder
 import com.smnc.sabaib.ui.theme.SabaiNavy
+import com.smnc.sabaib.ui.theme.SabaiNavyDark
+import com.smnc.sabaib.ui.theme.SabaiNavyLight
 import com.smnc.sabaib.ui.theme.SabaiOffWhite
 import com.smnc.sabaib.ui.theme.SabaiWhite
 import com.smnc.sabaib.ui.theme.SabaiYellow
@@ -35,24 +42,35 @@ fun HomeScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(SabaiYellow)
+            .background(
+                Brush.linearGradient(
+                    colors = listOf(SabaiNavyDark, SabaiNavy, SabaiNavyLight),
+                    start = Offset(0f, 0f),
+                    end = Offset(1200f, 1600f)
+                )
+            )
     ) {
-        // Decorative background circles
-        Box(
+        // Ambient glow blobs
+        GlowBlob(
+            modifier = Modifier
+                .size(260.dp)
+                .align(Alignment.TopStart)
+                .offset(x = (-100).dp, y = (-60).dp),
+            color = SabaiYellow.copy(alpha = 0.35f)
+        )
+        GlowBlob(
             modifier = Modifier
                 .size(220.dp)
-                .align(Alignment.TopStart)
-                .offset(x = (-90).dp, y = (-40).dp)
-                .clip(CircleShape)
-                .background(SabaiYellowLight.copy(alpha = 0.6f))
+                .align(Alignment.CenterEnd)
+                .offset(x = 90.dp, y = (-40).dp),
+            color = SabaiYellowLight.copy(alpha = 0.22f)
         )
-        Box(
+        GlowBlob(
             modifier = Modifier
-                .size(180.dp)
-                .align(Alignment.BottomEnd)
-                .offset(x = 60.dp, y = 40.dp)
-                .clip(CircleShape)
-                .background(SabaiYellowLight.copy(alpha = 0.5f))
+                .size(200.dp)
+                .align(Alignment.BottomStart)
+                .offset(x = (-40).dp, y = 60.dp),
+            color = SabaiNavyLight.copy(alpha = 0.5f)
         )
 
         Column(
@@ -66,7 +84,7 @@ fun HomeScreen(
 
             Text(
                 text = "Sabai",
-                color = SabaiNavy,
+                color = SabaiWhite,
                 fontSize = 40.sp,
                 fontWeight = FontWeight.ExtraBold
             )
@@ -75,31 +93,39 @@ fun HomeScreen(
 
             Text(
                 text = "Split bills, stay friends",
-                color = SabaiNavy.copy(alpha = 0.75f),
+                color = SabaiOffWhite.copy(alpha = 0.75f),
                 fontSize = 15.sp
             )
 
             Spacer(modifier = Modifier.height(28.dp))
 
-            Box(
-                modifier = Modifier
-                    .size(180.dp)
-                    .clip(CircleShape)
-                    .background(SabaiOffWhite),
-                contentAlignment = Alignment.Center
-            ) {
-                WavingPenguinGif(
-                    modifier = Modifier
-                        .width(130.dp)
-                        .height(165.dp)
+            Box(contentAlignment = Alignment.Center) {
+                GlowBlob(
+                    modifier = Modifier.size(220.dp),
+                    color = SabaiYellow.copy(alpha = 0.45f)
                 )
+
+                Box(
+                    modifier = Modifier
+                        .size(180.dp)
+                        .clip(CircleShape)
+                        .background(SabaiWhite.copy(alpha = 0.12f))
+                        .border(1.dp, SabaiWhite.copy(alpha = 0.28f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    WavingPenguinGif(
+                        modifier = Modifier
+                            .width(130.dp)
+                            .height(165.dp)
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(32.dp))
 
             Text(
                 text = "What do you want to do?",
-                color = SabaiNavy.copy(alpha = 0.8f),
+                color = SabaiOffWhite.copy(alpha = 0.85f),
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Medium
             )
@@ -128,7 +154,7 @@ fun HomeScreen(
 
             Text(
                 text = "Dashboard",
-                color = SabaiNavy,
+                color = SabaiYellowLight,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold,
                 textDecoration = TextDecoration.Underline,
@@ -136,9 +162,18 @@ fun HomeScreen(
             )
 
             Spacer(modifier = Modifier.weight(1f))
-
         }
     }
+}
+
+@Composable
+private fun GlowBlob(modifier: Modifier = Modifier, color: Color) {
+    Box(
+        modifier = modifier
+            .blur(70.dp)
+            .clip(CircleShape)
+            .background(color)
+    )
 }
 
 @Composable
@@ -152,7 +187,8 @@ private fun HomeFeatureCard(
         modifier = modifier
             .aspectRatio(1f)
             .clip(RoundedCornerShape(24.dp))
-            .background(SabaiWhite)
+            .background(SabaiWhite.copy(alpha = 0.10f))
+            .border(1.dp, SabaiWhite.copy(alpha = 0.22f), RoundedCornerShape(24.dp))
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
@@ -164,7 +200,7 @@ private fun HomeFeatureCard(
             Spacer(modifier = Modifier.height(10.dp))
             Text(
                 text = label,
-                color = SabaiNavy,
+                color = SabaiWhite,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center

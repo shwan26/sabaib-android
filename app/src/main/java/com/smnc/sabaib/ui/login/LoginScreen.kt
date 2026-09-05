@@ -30,6 +30,7 @@ import androidx.compose.runtime.collectAsState as collectAsStateSafe
 @Composable
 fun LoginScreen(
     onAuthSuccess: () -> Unit,
+    onForgotPassword: () -> Unit,
     viewModel: AuthViewModel = viewModel()
 ) {
     var email by remember { mutableStateOf("") }
@@ -96,6 +97,13 @@ fun LoginScreen(
         if (uiState is AuthUiState.Error) {
             Spacer(modifier = Modifier.height(8.dp))
             Text((uiState as AuthUiState.Error).message)
+        }
+
+        if (!isSignUpMode) {
+            Spacer(modifier = Modifier.height(4.dp))
+            TextButton(onClick = onForgotPassword) {
+                Text("Forgot password?")
+            }
         }
 
         Spacer(modifier = Modifier.height(12.dp))

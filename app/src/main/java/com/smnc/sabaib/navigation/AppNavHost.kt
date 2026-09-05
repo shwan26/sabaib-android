@@ -18,6 +18,7 @@ import com.smnc.sabaib.ui.charges.ChargesScreen
 import com.smnc.sabaib.ui.group.GroupScreen
 import com.smnc.sabaib.ui.home.HomeScreen
 import com.smnc.sabaib.ui.join.JoinBillScreen
+import com.smnc.sabaib.ui.login.ForgotPasswordScreen
 import com.smnc.sabaib.ui.login.LoginScreen
 import com.smnc.sabaib.ui.participants.ParticipantsScreen
 import com.smnc.sabaib.ui.payment.PaymentScreen
@@ -80,6 +81,17 @@ fun AppNavHost() {
                     navController.navigate(target) {
                         popUpTo("login/$redirect") { inclusive = true }
                     }
+                },
+                onForgotPassword = {
+                    navController.navigate(Screen.ForgotPassword.route)
+                }
+            )
+        }
+
+        composable(Screen.ForgotPassword.route) {
+            ForgotPasswordScreen(
+                onBack = {
+                    navController.popBackStack()
                 }
             )
         }
