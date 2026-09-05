@@ -121,6 +121,9 @@ fun AppNavHost() {
                     billViewModel = billViewModel,
                     onContinue = {
                         navController.navigate(Screen.Review.route)
+                    },
+                    onBack = {
+                        navController.popBackStack()
                     }
                 )
             } else {

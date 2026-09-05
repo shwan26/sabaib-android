@@ -6,9 +6,11 @@ import android.graphics.Bitmap
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -16,9 +18,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import com.smnc.sabaib.R
 import com.smnc.sabaib.domain.scan.ReceiptParser
+import com.smnc.sabaib.ui.theme.SabaiBlack
+import com.smnc.sabaib.ui.theme.SabaiLightGray
 import com.smnc.sabaib.viewmodel.BillViewModel
 import com.smnc.sabaib.util.createScanImageUri
 import com.smnc.sabaib.util.loadRotatedBitmap
@@ -33,7 +41,8 @@ private enum class ScanState {
 @Composable
 fun ScanScreen(
     billViewModel: BillViewModel,
-    onContinue: () -> Unit
+    onContinue: () -> Unit,
+    onBack: () -> Unit
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -142,7 +151,23 @@ fun ScanScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("Scan Receipt") })
+            TopAppBar(
+                title = {
+                    Text(
+                        text = "Scan Receipt",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            painter = painterResource(R.drawable.arrow_back_24),
+                            contentDescription = "Back"
+                        )
+                    }
+                }
+            )
         }
     ) { paddingValues ->
 
@@ -159,39 +184,65 @@ fun ScanScreen(
 
                 ScanState.Idle, ScanState.Error -> {
 
-                    Spacer(modifier = Modifier.height(32.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
-                    Text(
-                        text = "Take a photo of the receipt",
-                        style = MaterialTheme.typography.titleMedium
+                    Image(
+                        painter = painterResource(R.drawable.penguin_think),
+                        contentDescription = "Penguin thinking about your receipt",
+                        modifier = Modifier.size(180.dp)
                     )
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
                     Text(
                         text = "Lay it flat and make sure the prices " +
                                 "are clearly visible. You'll be able to " +
                                 "review and fix everything on the next step.",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
                     )
 
                     Spacer(modifier = Modifier.height(32.dp))
 
-                    Button(
+                    OutlinedButton(
                         onClick = { launchCamera() },
-                        modifier = Modifier.fillMaxWidth()
+                        border = BorderStroke(1.dp, SabaiLightGray),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = SabaiBlack),
+                        shape = RoundedCornerShape(20.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(56.dp)
                     ) {
-                        Text("Take Photo")
+                        Icon(
+                            painter = painterResource(R.drawable.photo_camera_24),
+                            contentDescription = null,
+                            tint = SabaiBlack,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(text = "Take a Photo", fontWeight = FontWeight.Bold)
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
 
                     OutlinedButton(
                         onClick = { launchGallery() },
-                        modifier = Modifier.fillMaxWidth()
+                        border = BorderStroke(1.dp, SabaiLightGray),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = SabaiBlack),
+                        shape = RoundedCornerShape(20.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(56.dp)
                     ) {
-                        Text("Choose from Gallery")
+                        Icon(
+                            painter = painterResource(R.drawable.photo_library_24),
+                            contentDescription = null,
+                            tint = SabaiBlack,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(text = "Choose from Gallery", fontWeight = FontWeight.Bold)
                     }
 
                     errorMessage?.let { message ->
