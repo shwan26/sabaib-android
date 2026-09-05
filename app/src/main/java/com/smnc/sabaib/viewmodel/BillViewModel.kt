@@ -49,6 +49,26 @@ class BillViewModel : ViewModel() {
     val currentParticipantId: State<String?> =
         _currentParticipantId
 
+    private val _promptPayNumber =
+        mutableStateOf<String?>(null)
+
+    val promptPayNumber: State<String?> =
+        _promptPayNumber
+
+    private val _paidStatus =
+        mutableStateOf<Map<String, Boolean>>(emptyMap())
+
+    val paidStatus: State<Map<String, Boolean>> =
+        _paidStatus
+
+    fun updatePromptPayNumber(number: String) {
+        _promptPayNumber.value = number
+    }
+
+    fun markParticipantPaid(participantId: String) {
+        _paidStatus.value = _paidStatus.value + (participantId to true)
+    }
+
     fun updateItems(items: List<ReceiptItem>) {
 
         val subtotal = items.sumOf {

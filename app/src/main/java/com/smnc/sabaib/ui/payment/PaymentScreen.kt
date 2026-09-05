@@ -1,19 +1,173 @@
 package com.smnc.sabaib.ui.payment
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.smnc.sabaib.R
+import com.smnc.sabaib.ui.theme.SabaiBlack
+import com.smnc.sabaib.ui.theme.SabaiCharcoal
+import com.smnc.sabaib.ui.theme.SabaiGray
+import com.smnc.sabaib.ui.theme.SabaiWhite
+import com.smnc.sabaib.ui.theme.SabaiYellow
+import com.smnc.sabaib.viewmodel.BillViewModel
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PaymentScreen() {
-    Column(
-        modifier = Modifier.padding(24.dp)
-    ) {
-        Text("Payment")
+fun PaymentScreen(
+    billViewModel: BillViewModel,
+    onParticipantClick: (String) -> Unit,
+    onBackToHome: () -> Unit,
+    onBack: () -> Unit = {}
+) {
 
-        Text("Alex owes ฿194.16")
+    val bill by billViewModel.bill
+    val participants by billViewModel.participants
+    val paidStatus by billViewModel.paidStatus
+
+    val totals = billViewModel.calculateParticipantTotals()
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = "Split Items",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            painter = painterResource(R.drawable.arrow_back_24),
+                            contentDescription = "Back"
+                        )
+                    }
+                }
+            )
+        }
+    ) { paddingValues ->
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(SabaiCharcoal, RoundedCornerShape(20.dp))
+                    .padding(20.dp)
+            ) {
+                Text(
+                    text = "Bill Total" +
+                            if (bill.restaurantName.isNotBlank()) " · ${bill.restaurantName}" else "",
+                    color = SabaiGray,
+                    style = MaterialTheme.typography.bodySmall
+                )
+
+                Text(
+                    text = "฿${"%.0f".format(bill.total)}",
+                    color = SabaiYellow,
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.headlineMedium
+                )
+            }
+
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                totals.forEach { personTotal ->
+
+                    val participant = participants.find {
+                        it.id == personTotal.participantId
+                    }
+
+                    val statusLabel = when {
+                        participant?.isHost == true -> "(host)"
+                        paidStatus[personTotal.participantId] == true -> "Paid"
+                        else -> "Unpaid"
+                    }
+
+                    val displayName = if (participant?.isHost == true) {
+                        "You"
+                    } else {
+                        personTotal.participantName
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(SabaiWhite, RoundedCornerShape(16.dp))
+                            .clickable {
+                                onParticipantClick(personTotal.participantId)
+                            }
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column {
+                            Text(
+                                text = displayName,
+                                fontWeight = FontWeight.SemiBold,
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            Text(
+                                text = statusLabel,
+                                color = SabaiGray,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+
+                        Text(
+                            text = "฿${"%.0f".format(personTotal.total)}",
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                    }
+                }
+            }
+
+            Button(
+                onClick = onBackToHome,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = SabaiYellow,
+                    contentColor = SabaiBlack
+                ),
+                shape = RoundedCornerShape(20.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+            ) {
+                Text("Back to Home", fontWeight = FontWeight.Bold)
+            }
+        }
     }
 }

@@ -64,6 +64,10 @@ fun SplitScreen(
 
     val hasUnclaimedItems = billViewModel.hasUnclaimedItems()
 
+    var promptPayInput by remember {
+        mutableStateOf(billViewModel.promptPayNumber.value.orEmpty())
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -198,6 +202,18 @@ fun SplitScreen(
                                 billViewModel.setSplitEvenly(!bill.isSplitEvenly)
                             }
                         )
+
+                        if (viewerIsHost) {
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            OutlinedTextField(
+                                value = promptPayInput,
+                                onValueChange = { promptPayInput = it },
+                                label = { Text("PromptPay number") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
                     }
                 }
             }
@@ -242,8 +258,14 @@ fun SplitScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             Button(
-                onClick = onContinue,
-                enabled = !hasUnclaimedItems && viewerId != null,
+                onClick = {
+                    if (viewerIsHost) {
+                        billViewModel.updatePromptPayNumber(promptPayInput)
+                    }
+                    onContinue()
+                },
+                enabled = !hasUnclaimedItems && viewerId != null &&
+                        (!viewerIsHost || promptPayInput.isNotBlank()),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = SabaiYellow,
                     contentColor = SabaiBlack

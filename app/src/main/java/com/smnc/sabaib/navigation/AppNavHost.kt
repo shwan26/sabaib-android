@@ -15,7 +15,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.smnc.sabaib.data.AuthRepository
-import com.smnc.sabaib.ui.charges.ChargesScreen
 import com.smnc.sabaib.ui.home.HomeScreen
 import com.smnc.sabaib.ui.join.JoinBillScreen
 import com.smnc.sabaib.ui.landing.LandingScreen
@@ -23,6 +22,7 @@ import com.smnc.sabaib.ui.login.ForgotPasswordScreen
 import com.smnc.sabaib.ui.login.LoginScreen
 import com.smnc.sabaib.ui.participants.ParticipantsScreen
 import com.smnc.sabaib.ui.payment.PaymentScreen
+import com.smnc.sabaib.ui.payment.UserPaymentScreen
 import com.smnc.sabaib.ui.review.ReviewScreen
 import com.smnc.sabaib.ui.room.BillRoomScreen
 import com.smnc.sabaib.ui.scan.ScanScreen
@@ -153,15 +153,6 @@ fun AppNavHost() {
                     navController.popBackStack()
                 },
                 onContinue = {
-                    navController.navigate(Screen.Charges.route)
-                }
-            )
-        }
-
-        composable(Screen.Charges.route) {
-            ChargesScreen(
-                billViewModel = billViewModel,
-                onContinue = {
                     navController.navigate(Screen.Payment.route)
                 }
             )
@@ -201,7 +192,44 @@ fun AppNavHost() {
         }
 
         composable(Screen.Payment.route) {
-            PaymentScreen()
+            PaymentScreen(
+                billViewModel = billViewModel,
+                onParticipantClick = { participantId ->
+                    navController.navigate("user_payment/$participantId")
+                },
+                onBackToHome = {
+                    navController.navigate(Screen.Home.route) {
+                        popUpTo(Screen.Home.route) { inclusive = false }
+                    }
+                }
+            )
+        }
+
+        composable(
+            route = Screen.UserPayment.route,
+            arguments = listOf(navArgument("participantId") { type = NavType.StringType })
+        ) { backStackEntry ->
+
+            val participantId = backStackEntry.arguments
+                ?.getString("participantId")
+                .orEmpty()
+
+            UserPaymentScreen(
+                billViewModel = billViewModel,
+                participantId = participantId,
+                onBack = {
+                    navController.popBackStack()
+                },
+                onDone = {
+                    billViewModel.markParticipantPaid(participantId)
+                    navController.popBackStack()
+                },
+                onBackToHome = {
+                    navController.navigate(Screen.Home.route) {
+                        popUpTo(Screen.Home.route) { inclusive = false }
+                    }
+                }
+            )
         }
         composable(Screen.BillRoom.route) {
             BillRoomScreen(
