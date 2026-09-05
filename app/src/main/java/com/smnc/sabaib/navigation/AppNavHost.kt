@@ -149,6 +149,9 @@ fun AppNavHost() {
         composable(Screen.Split.route) {
             SplitScreen(
                 billViewModel = billViewModel,
+                onBack = {
+                    navController.popBackStack()
+                },
                 onContinue = {
                     navController.navigate(Screen.Charges.route)
                 }

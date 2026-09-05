@@ -1,150 +1,162 @@
 package com.smnc.sabaib.ui.split
 
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.smnc.sabaib.model.Participant
 import com.smnc.sabaib.model.ReceiptItem
+import com.smnc.sabaib.ui.theme.SabaiBlack
+import com.smnc.sabaib.ui.theme.SabaiGray
+import com.smnc.sabaib.ui.theme.SabaiLightGray
+import com.smnc.sabaib.ui.theme.SabaiWhite
+import com.smnc.sabaib.ui.theme.SabaiYellow
 
 @Composable
 fun SplitItemCard(
     item: ReceiptItem,
+    effectivePrice: Double,
     participants: List<Participant>,
+    participantColors: Map<String, Color>,
     selectedParticipantIds: Set<String>,
-    onParticipantToggle: (String) -> Unit,
-    onSelectEveryone: () -> Unit,
-    onClear: () -> Unit
+    isSplitEvenly: Boolean,
+    isHighlighted: Boolean,
+    isInteractive: Boolean,
+    onTap: () -> Unit
 ) {
 
-    val itemTotal =
-        item.price * item.quantity
+    val assignedParticipants =
+        if (isSplitEvenly) {
+            participants
+        } else {
+            participants.filter { it.id in selectedParticipantIds }
+        }
 
-    val selectedCount =
-        selectedParticipantIds.size
+    val selectedCount = assignedParticipants.size
 
     val perPerson =
         if (selectedCount > 0) {
-            itemTotal / selectedCount
+            effectivePrice / selectedCount
         } else {
             0.0
         }
 
-    Card(
-        modifier =
-            Modifier.fillMaxWidth()
+    val highlight = isHighlighted && !isSplitEvenly
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(
+                if (highlight) SabaiYellow.copy(alpha = 0.16f) else SabaiWhite
+            )
+            .border(
+                width = if (highlight) 1.5.dp else 1.dp,
+                color = if (highlight) SabaiYellow else SabaiLightGray,
+                shape = RoundedCornerShape(16.dp)
+            )
+            .let { base ->
+                if (isInteractive) base.clickable { onTap() } else base
+            }
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
 
-        Column(
-            modifier =
-                Modifier.padding(16.dp)
-        ) {
+        Column(modifier = Modifier.weight(1f)) {
 
             Text(
                 text = item.englishName,
-                style =
-                    MaterialTheme.typography
-                        .titleMedium
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = SabaiBlack
             )
+
+            Spacer(modifier = Modifier.width(2.dp))
 
             Text(
-                text = item.thaiName
+                text = when {
+                    isSplitEvenly ->
+                        "Split evenly · all ${participants.size}"
+
+                    selectedCount > 0 ->
+                        "Split $selectedCount way${if (selectedCount == 1) "" else "s"} · ฿${"%.0f".format(perPerson)} each"
+
+                    else ->
+                        "Tap to claim"
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = if (selectedCount == 0 && !isSplitEvenly) MaterialTheme.colorScheme.error else SabaiGray
             )
-
-            Spacer(
-                modifier =
-                    Modifier.height(4.dp)
-            )
-
-            Text(
-                text =
-                    "฿${"%.2f".format(itemTotal)}"
-            )
-
-            Spacer(
-                modifier =
-                    Modifier.height(12.dp)
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                TextButton(
-                    onClick = onSelectEveryone
-                ) {
-                    Text("Everyone")
-                }
-
-                TextButton(
-                    onClick = onClear,
-                    enabled = selectedParticipantIds.isNotEmpty()
-                ) {
-                    Text("Clear")
-                }
-            }
-
-
-
-            participants.forEach {
-                    participant ->
-
-                Row(
-                    modifier =
-                        Modifier.fillMaxWidth(),
-                    horizontalArrangement =
-                        Arrangement.SpaceBetween
-                ) {
-
-                    Text(
-                        text =
-                            participant.name
-                    )
-
-                    Checkbox(
-                        checked =
-                            participant.id in
-                                    selectedParticipantIds,
-
-                        onCheckedChange = {
-                            onParticipantToggle(
-                                participant.id
-                            )
-                        }
-                    )
-                }
-            }
-
-            if (selectedCount > 0) {
-
-                HorizontalDivider()
-
-                Spacer(
-                    modifier =
-                        Modifier.height(8.dp)
-                )
-
-                Text(
-                    text =
-                        "Shared by $selectedCount"
-                )
-
-                Text(
-                    text =
-                        "฿${"%.2f".format(perPerson)} each"
-                )
-
-            } else {
-
-                Text(
-                    text =
-                        "No one selected yet",
-                    color =
-                        MaterialTheme
-                            .colorScheme
-                            .error
-                )
-            }
         }
+
+        if (assignedParticipants.isNotEmpty()) {
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy((-8).dp)
+            ) {
+                assignedParticipants.take(4).forEach { participant ->
+                    AvatarDot(
+                        initial = participant.name.take(1).uppercase(),
+                        color = participantColors[participant.id] ?: SabaiGray
+                    )
+                }
+
+                if (assignedParticipants.size > 4) {
+                    AvatarDot(
+                        initial = "+${assignedParticipants.size - 4}",
+                        color = SabaiGray
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+        }
+
+        Text(
+            text = "฿${"%.0f".format(effectivePrice)}",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold,
+            color = SabaiBlack
+        )
+    }
+}
+
+@Composable
+private fun AvatarDot(
+    initial: String,
+    color: Color
+) {
+    Box(
+        modifier = Modifier
+            .size(24.dp)
+            .border(2.dp, SabaiWhite, CircleShape)
+            .background(color, CircleShape),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = initial,
+            color = SabaiWhite,
+            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.labelSmall
+        )
     }
 }
