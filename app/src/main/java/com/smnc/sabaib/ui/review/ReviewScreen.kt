@@ -19,7 +19,6 @@ import com.smnc.sabaib.domain.charges.ChargeCalculator
 import com.smnc.sabaib.model.ReceiptItem
 import com.smnc.sabaib.model.sampleReceiptItems
 import com.smnc.sabaib.ui.theme.SabaiBlack
-import com.smnc.sabaib.ui.theme.SabaiGray
 import com.smnc.sabaib.ui.theme.SabaiWhite
 import com.smnc.sabaib.ui.theme.SabaiYellow
 import com.smnc.sabaib.viewmodel.BillViewModel
@@ -85,46 +84,33 @@ fun ReviewScreen(
         cursorColor = SabaiYellow
     )
 
-    Scaffold { paddingValues ->
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = "Confirm Items",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            painter = painterResource(R.drawable.arrow_back_24),
+                            contentDescription = "Back"
+                        )
+                    }
+                }
+            )
+        }
+    ) { paddingValues ->
 
         Column(
             modifier = Modifier
                 .padding(paddingValues)
                 .fillMaxSize()
         ) {
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-
-                IconButton(onClick = onBack) {
-                    Icon(
-                        painter = painterResource(R.drawable.arrow_back_24),
-                        contentDescription = "Back"
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(4.dp))
-
-                Column {
-                    Text(
-                        text = "Confirm Items",
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-
-                    Text(
-                        text = "We found ${receiptItems.size} items. Check they're right!",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = SabaiGray
-                    )
-                }
-            }
-
-            HorizontalDivider()
 
             LazyColumn(
                 modifier = Modifier

@@ -21,6 +21,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.smnc.sabaib.model.JoinMethod
 import com.smnc.sabaib.viewmodel.BillViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -120,7 +121,8 @@ fun JoinBillScreen(
                     ) {
 
                         billViewModel.addParticipant(
-                            name = name
+                            name = name,
+                            joinMethod = JoinMethod.SELF_JOINED
                         )
 
                         errorMessage = null

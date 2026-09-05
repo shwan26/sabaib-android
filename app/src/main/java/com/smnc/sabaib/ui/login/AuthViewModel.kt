@@ -3,6 +3,7 @@ package com.smnc.sabaib.ui.login
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.smnc.sabaib.data.AuthRepository
+import com.smnc.sabaib.data.toUserMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -29,7 +30,7 @@ class AuthViewModel(
                 repository.signIn(email, password)
                 _uiState.value = AuthUiState.Success
             } catch (e: Exception) {
-                _uiState.value = AuthUiState.Error(e.message ?: "Login failed")
+                _uiState.value = AuthUiState.Error(e.toUserMessage())
             }
         }
     }
@@ -41,7 +42,7 @@ class AuthViewModel(
                 repository.signUp(email, password)
                 _uiState.value = AuthUiState.Success
             } catch (e: Exception) {
-                _uiState.value = AuthUiState.Error(e.message ?: "Sign up failed")
+                _uiState.value = AuthUiState.Error(e.toUserMessage())
             }
         }
     }
