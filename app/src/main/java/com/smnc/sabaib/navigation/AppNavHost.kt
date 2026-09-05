@@ -16,7 +16,6 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.smnc.sabaib.data.AuthRepository
 import com.smnc.sabaib.ui.charges.ChargesScreen
-import com.smnc.sabaib.ui.group.GroupScreen
 import com.smnc.sabaib.ui.home.HomeScreen
 import com.smnc.sabaib.ui.join.JoinBillScreen
 import com.smnc.sabaib.ui.landing.LandingScreen
@@ -139,16 +138,10 @@ fun AppNavHost() {
             ReviewScreen(
                 billViewModel = billViewModel,
                 onContinue = {
-                    navController.navigate(Screen.Group.route)
-                }
-            )
-        }
-
-        composable(Screen.Group.route) {
-            GroupScreen(
-                billViewModel = billViewModel,
-                onGroupCreated = {
                     navController.navigate(Screen.BillRoom.route)
+                },
+                onBack = {
+                    navController.popBackStack()
                 }
             )
         }

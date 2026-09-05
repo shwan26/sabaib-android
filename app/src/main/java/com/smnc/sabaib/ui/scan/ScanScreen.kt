@@ -8,6 +8,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -27,6 +29,8 @@ import com.smnc.sabaib.R
 import com.smnc.sabaib.domain.scan.ReceiptParser
 import com.smnc.sabaib.ui.theme.SabaiBlack
 import com.smnc.sabaib.ui.theme.SabaiLightGray
+import com.smnc.sabaib.ui.theme.SabaiWhite
+import com.smnc.sabaib.ui.theme.SabaiYellow
 import com.smnc.sabaib.viewmodel.BillViewModel
 import com.smnc.sabaib.util.createScanImageUri
 import com.smnc.sabaib.util.loadRotatedBitmap
@@ -226,10 +230,17 @@ fun ScanScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
+                    val galleryInteractionSource = remember { MutableInteractionSource() }
+                    val isGalleryPressed by galleryInteractionSource.collectIsPressedAsState()
+
                     OutlinedButton(
                         onClick = { launchGallery() },
-                        border = BorderStroke(1.dp, SabaiLightGray),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = SabaiBlack),
+                        interactionSource = galleryInteractionSource,
+                        border = BorderStroke(1.dp, if (isGalleryPressed) SabaiYellow else SabaiBlack),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = SabaiWhite,
+                            contentColor = SabaiBlack
+                        ),
                         shape = RoundedCornerShape(20.dp),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -305,9 +316,16 @@ fun ScanScreen(
 
                     Button(
                         onClick = onContinue,
-                        modifier = Modifier.fillMaxWidth()
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = SabaiYellow,
+                            contentColor = SabaiBlack
+                        ),
+                        shape = RoundedCornerShape(20.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(56.dp)
                     ) {
-                        Text("Continue")
+                        Text("Continue", fontWeight = FontWeight.Bold)
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))

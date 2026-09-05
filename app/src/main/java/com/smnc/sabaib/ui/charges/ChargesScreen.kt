@@ -10,7 +10,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -23,7 +22,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -39,33 +37,9 @@ fun ChargesScreen(
 
     val bill by billViewModel.bill
 
-    var serviceChargePercent by remember {
-        mutableStateOf("0")
-    }
-
-    var vatPercent by remember {
-        mutableStateOf("7")
-    }
-
     var discount by remember {
         mutableStateOf("0")
     }
-
-    var vatIncluded by remember {
-        mutableStateOf(false)
-    }
-
-    val serviceRate =
-        serviceChargePercent
-            .toDoubleOrNull()
-            ?.div(100)
-            ?: 0.0
-
-    val vatRate =
-        vatPercent
-            .toDoubleOrNull()
-            ?.div(100)
-            ?: 0.0
 
     val discountAmount =
         discount
@@ -76,13 +50,13 @@ fun ChargesScreen(
         ChargeCalculator.calculate(
             subtotal = bill.subtotal,
             serviceChargeRate =
-                serviceRate,
+                bill.serviceChargeRate,
             vatRate =
-                vatRate,
+                bill.vatRate,
             discount =
                 discountAmount,
             isVatIncluded =
-                vatIncluded
+                bill.isVatIncluded
         )
 
     Scaffold(
@@ -110,53 +84,12 @@ fun ChargesScreen(
             )
 
             Text(
-                text = "Check service charge, VAT, and discount."
+                text = "Adjust any final discount before splitting."
             )
 
             Text(
                 text = "Food subtotal: ฿${"%.2f".format(bill.subtotal)}"
             )
-
-            OutlinedTextField(
-                value = serviceChargePercent,
-                onValueChange = {
-                    serviceChargePercent = it
-                },
-                label = {
-                    Text("Service charge %")
-                },
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Decimal
-                ),
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            OutlinedTextField(
-                value = vatPercent,
-                onValueChange = {
-                    vatPercent = it
-                },
-                label = {
-                    Text("VAT %")
-                },
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Decimal
-                ),
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Checkbox(
-                    checked = vatIncluded,
-                    onCheckedChange = {
-                        vatIncluded = it
-                    }
-                )
-
-                Text("VAT already included in receipt total")
-            }
 
             OutlinedTextField(
                 value = discount,
@@ -180,7 +113,7 @@ fun ChargesScreen(
             )
 
             ChargeRow(
-                label = "Service charge",
+                label = "Other charges",
                 amount = preview.serviceCharge
             )
 
@@ -234,10 +167,10 @@ fun ChargesScreen(
                 onClick = {
 
                     billViewModel.updateCharges(
-                        serviceChargeRate = serviceRate,
-                        vatRate = vatRate,
+                        serviceChargeRate = bill.serviceChargeRate,
+                        vatRate = bill.vatRate,
                         discount = discountAmount,
-                        isVatIncluded = vatIncluded
+                        isVatIncluded = bill.isVatIncluded
                     )
 
                     onContinue()

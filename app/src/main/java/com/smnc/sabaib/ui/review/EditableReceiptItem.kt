@@ -1,14 +1,21 @@
 package com.smnc.sabaib.ui.review
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.smnc.sabaib.R
 import com.smnc.sabaib.model.ReceiptItem
+import com.smnc.sabaib.ui.theme.SabaiGray
+import com.smnc.sabaib.ui.theme.SabaiLightGray
 
 @Composable
 fun EditableReceiptItem(
@@ -21,44 +28,14 @@ fun EditableReceiptItem(
     }
 
     Card(
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, SabaiLightGray),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
         ) {
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
-            ) {
-
-                Column(modifier = Modifier.weight(1f)) {
-
-                    if (!isEditing) {
-                        Text(
-                            text = item.englishName,
-                            style = MaterialTheme.typography.titleMedium
-                        )
-
-                        if (item.thaiName.isNotBlank()) {
-                            Text(
-                                text = item.thaiName,
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        }
-                    }
-                }
-
-                TextButton(
-                    onClick = onDelete,
-                    colors = ButtonDefaults.textButtonColors(
-                        contentColor = MaterialTheme.colorScheme.error
-                    )
-                ) {
-                    Text("Remove")
-                }
-            }
 
             if (isEditing) {
 
@@ -92,26 +69,52 @@ fun EditableReceiptItem(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                OutlinedTextField(
-                    value = item.price.toString(),
-                    onValueChange = { value ->
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
 
-                        val newPrice = value.toDoubleOrNull()
+                    OutlinedTextField(
+                        value = item.price.toString(),
+                        onValueChange = { value ->
 
-                        if (newPrice != null) {
-                            onItemChange(
-                                item.copy(price = newPrice)
-                            )
-                        }
-                    },
-                    label = {
-                        Text("Price")
-                    },
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Decimal
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
+                            val newPrice = value.toDoubleOrNull()
+
+                            if (newPrice != null) {
+                                onItemChange(
+                                    item.copy(price = newPrice)
+                                )
+                            }
+                        },
+                        label = {
+                            Text("Price")
+                        },
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Decimal
+                        ),
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    OutlinedTextField(
+                        value = item.quantity.toString(),
+                        onValueChange = { value ->
+
+                            val newQuantity = value.toIntOrNull()
+
+                            if (newQuantity != null && newQuantity > 0) {
+                                onItemChange(
+                                    item.copy(quantity = newQuantity)
+                                )
+                            }
+                        },
+                        label = {
+                            Text("Qty")
+                        },
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Number
+                        ),
+                        modifier = Modifier.weight(1f)
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(12.dp))
 
@@ -131,56 +134,60 @@ fun EditableReceiptItem(
             } else {
 
                 Row(
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
 
-                    OutlinedButton(
-                        onClick = {
-                            if (item.quantity > 1) {
-                                onItemChange(
-                                    item.copy(
-                                        quantity = item.quantity - 1
-                                    )
-                                )
-                            }
-                        }
+                    IconButton(
+                        onClick = { isEditing = true },
+                        modifier = Modifier.size(24.dp)
                     ) {
-                        Text("-")
+                        Icon(
+                            painter = painterResource(R.drawable.edit_24),
+                            contentDescription = "Edit item"
+                        )
+                    }
+
+                    Column(modifier = Modifier.weight(1f)) {
+
+                        Text(
+                            text = item.englishName,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+
+                        if (item.thaiName.isNotBlank()) {
+                            Text(
+                                text = item.thaiName,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = SabaiGray
+                            )
+                        }
                     }
 
                     Text(
                         text = item.quantity.toString(),
-                        style = MaterialTheme.typography.titleMedium
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.padding(horizontal = 8.dp)
                     )
 
-                    OutlinedButton(
-                        onClick = {
-                            onItemChange(
-                                item.copy(
-                                    quantity = item.quantity + 1
-                                )
-                            )
-                        }
+                    Text(
+                        text = "฿${"%.0f".format(item.price * item.quantity)}",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    IconButton(
+                        onClick = onDelete,
+                        modifier = Modifier.size(24.dp)
                     ) {
-                        Text("+")
+                        Icon(
+                            painter = painterResource(R.drawable.delete_24),
+                            contentDescription = "Remove item",
+                            tint = MaterialTheme.colorScheme.error
+                        )
                     }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Text(
-                    text = "฿${"%.2f".format(item.price * item.quantity)}"
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                TextButton(
-                    onClick = {
-                        isEditing = true
-                    }
-                ) {
-                    Text("Edit")
                 }
             }
         }
