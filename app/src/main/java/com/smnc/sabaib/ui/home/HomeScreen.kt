@@ -1,227 +1,345 @@
 package com.smnc.sabaib.ui.home
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil3.ImageLoader
-import coil3.compose.AsyncImage
-import coil3.gif.GifDecoder
+import com.smnc.sabaib.R
+import com.smnc.sabaib.ui.theme.SabaiBlack
+import com.smnc.sabaib.ui.theme.SabaiGray
+import com.smnc.sabaib.ui.theme.SabaiLightGray
 import com.smnc.sabaib.ui.theme.SabaiNavy
 import com.smnc.sabaib.ui.theme.SabaiNavyDark
-import com.smnc.sabaib.ui.theme.SabaiNavyLight
 import com.smnc.sabaib.ui.theme.SabaiOffWhite
 import com.smnc.sabaib.ui.theme.SabaiWhite
 import com.smnc.sabaib.ui.theme.SabaiYellow
+import com.smnc.sabaib.ui.theme.SabaiYellowDark
 import com.smnc.sabaib.ui.theme.SabaiYellowLight
+
+enum class GroupStatus { ACTIVE, SETTLED }
+
+data class RecentGroupUi(
+    val id: String,
+    val name: String,
+    val peopleCount: Int,
+    val totalAmount: Double,
+    val status: GroupStatus
+)
+
+private val sampleRecentGroups = listOf(
+    RecentGroupUi("1", "Dinner @ Thonglor", 4, 830.0, GroupStatus.ACTIVE),
+    RecentGroupUi("2", "Weekend Trip", 3, 2450.0, GroupStatus.SETTLED)
+)
+
+private enum class HomeTab { HOME, GROUPS, PROFILE }
 
 @Composable
 fun HomeScreen(
     onScanClick: () -> Unit,
     onJoinBill: () -> Unit,
-    onDashboardClick: () -> Unit = {}
+    userName: String = "Alex",
+    recentGroups: List<RecentGroupUi> = sampleRecentGroups,
+    onGroupClick: (RecentGroupUi) -> Unit = {},
+    onGroupsTabClick: () -> Unit = {},
+    onProfileTabClick: () -> Unit = {}
 ) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                Brush.linearGradient(
-                    colors = listOf(SabaiNavyDark, SabaiNavy, SabaiNavyLight),
-                    start = Offset(0f, 0f),
-                    end = Offset(1200f, 1600f)
-                )
-            )
-    ) {
-        // Ambient glow blobs
-        GlowBlob(
-            modifier = Modifier
-                .size(260.dp)
-                .align(Alignment.TopStart)
-                .offset(x = (-100).dp, y = (-60).dp),
-            color = SabaiYellow.copy(alpha = 0.35f)
-        )
-        GlowBlob(
-            modifier = Modifier
-                .size(220.dp)
-                .align(Alignment.CenterEnd)
-                .offset(x = 90.dp, y = (-40).dp),
-            color = SabaiYellowLight.copy(alpha = 0.22f)
-        )
-        GlowBlob(
-            modifier = Modifier
-                .size(200.dp)
-                .align(Alignment.BottomStart)
-                .offset(x = (-40).dp, y = 60.dp),
-            color = SabaiNavyLight.copy(alpha = 0.5f)
-        )
+    var selectedTab by remember { mutableStateOf(HomeTab.HOME) }
 
+    Scaffold(
+        containerColor = SabaiOffWhite,
+        bottomBar = {
+            NavigationBar(containerColor = SabaiWhite) {
+                NavigationBarItem(
+                    selected = selectedTab == HomeTab.HOME,
+                    onClick = { selectedTab = HomeTab.HOME },
+                    icon = {
+                        Icon(
+                            painter = painterResource(R.drawable.home_24),
+                            contentDescription = "Home",
+                            modifier = Modifier.size(22.dp)
+                        )
+                    },
+                    label = { Text("Home") },
+                    colors = homeNavItemColors()
+                )
+                NavigationBarItem(
+                    selected = selectedTab == HomeTab.GROUPS,
+                    onClick = {
+                        selectedTab = HomeTab.GROUPS
+                        onGroupsTabClick()
+                    },
+                    icon = {
+                        Icon(
+                            painter = painterResource(R.drawable.ad_group_24),
+                            contentDescription = "Groups",
+                            modifier = Modifier.size(22.dp)
+                        )
+                    },
+                    label = { Text("Groups") },
+                    colors = homeNavItemColors()
+                )
+                NavigationBarItem(
+                    selected = selectedTab == HomeTab.PROFILE,
+                    onClick = {
+                        selectedTab = HomeTab.PROFILE
+                        onProfileTabClick()
+                    },
+                    icon = {
+                        Icon(
+                            painter = painterResource(R.drawable.contacts_product_24),
+                            contentDescription = "Profile",
+                            modifier = Modifier.size(22.dp)
+                        )
+                    },
+                    label = { Text("Profile") },
+                    colors = homeNavItemColors()
+                )
+            }
+        }
+    ) { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .statusBarsPadding()
-                .padding(horizontal = 24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .background(SabaiOffWhite)
+                .padding(paddingValues)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp)
         ) {
-            Spacer(modifier = Modifier.height(40.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
-            Text(
-                text = "Sabai",
-                color = SabaiWhite,
-                fontSize = 40.sp,
-                fontWeight = FontWeight.ExtraBold
-            )
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            Text(
-                text = "Split bills, stay friends",
-                color = SabaiOffWhite.copy(alpha = 0.75f),
-                fontSize = 15.sp
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "Welcome $userName!",
+                    color = SabaiBlack,
+                    fontSize = 26.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Image(
+                    painter = painterResource(R.drawable.penguin_wave),
+                    contentDescription = "SabaiB penguin mascot",
+                    modifier = Modifier.size(36.dp)
+                )
+            }
 
             Spacer(modifier = Modifier.height(28.dp))
 
-            Box(contentAlignment = Alignment.Center) {
-                GlowBlob(
-                    modifier = Modifier.size(220.dp),
-                    color = SabaiYellow.copy(alpha = 0.45f)
-                )
-
-                Box(
-                    modifier = Modifier
-                        .size(180.dp)
-                        .clip(CircleShape)
-                        .background(SabaiWhite.copy(alpha = 0.12f))
-                        .border(1.dp, SabaiWhite.copy(alpha = 0.28f), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    WavingPenguinGif(
-                        modifier = Modifier
-                            .width(130.dp)
-                            .height(165.dp)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            Text(
-                text = "What do you want to do?",
-                color = SabaiOffWhite.copy(alpha = 0.85f),
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium
-            )
+            ScanBillCard()
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            Button(
+                onClick = onScanClick,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = SabaiYellow,
+                    contentColor = SabaiBlack
+                ),
+                shape = RoundedCornerShape(20.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
             ) {
-                HomeFeatureCard(
-                    icon = "📷",
-                    label = "Scan Bill",
-                    onClick = onScanClick,
-                    modifier = Modifier.weight(1f)
+                Icon(
+                    painter = painterResource(R.drawable.photo_camera_24),
+                    contentDescription = null,
+                    tint = SabaiBlack,
+                    modifier = Modifier.size(20.dp)
                 )
-                HomeFeatureCard(
-                    icon = "👥",
-                    label = "Join Group",
-                    onClick = onJoinBill,
-                    modifier = Modifier.weight(1f)
-                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(text = "Scan Bill", fontSize = 16.sp, fontWeight = FontWeight.Bold)
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            Text(
-                text = "Dashboard",
-                color = SabaiYellowLight,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold,
-                textDecoration = TextDecoration.Underline,
-                modifier = Modifier.clickable(onClick = onDashboardClick)
+            OutlinedButton(
+                onClick = onJoinBill,
+                border = BorderStroke(1.dp, SabaiLightGray),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = SabaiBlack),
+                shape = RoundedCornerShape(20.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ad_group_24),
+                    contentDescription = null,
+                    tint = SabaiBlack,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(text = "Join a Group", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            }
+
+            Spacer(modifier = Modifier.height(28.dp))
+
+            RecentGroupsSection(
+                groups = recentGroups,
+                onGroupClick = onGroupClick
             )
 
-            Spacer(modifier = Modifier.weight(1f))
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }
 
 @Composable
-private fun GlowBlob(modifier: Modifier = Modifier, color: Color) {
+private fun homeNavItemColors() = NavigationBarItemDefaults.colors(
+    selectedIconColor = SabaiYellowDark,
+    selectedTextColor = SabaiYellowDark,
+    indicatorColor = SabaiYellowLight.copy(alpha = 0.35f),
+    unselectedIconColor = SabaiGray,
+    unselectedTextColor = SabaiGray
+)
+
+@Composable
+private fun ScanBillCard() {
     Box(
-        modifier = modifier
-            .blur(70.dp)
-            .clip(CircleShape)
-            .background(color)
-    )
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(190.dp)
+            .clip(RoundedCornerShape(28.dp))
+            .background(SabaiNavyDark)
+    ) {
+        Text(
+            text = "🧾",
+            fontSize = 64.sp,
+            modifier = Modifier
+                .align(Alignment.Center)
+                .padding(bottom = 24.dp)
+        )
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.BottomCenter)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(SabaiBlack.copy(alpha = 0f), SabaiBlack.copy(alpha = 0.85f))
+                    )
+                )
+                .padding(vertical = 18.dp, horizontal = 16.dp)
+        ) {
+            Text(
+                text = "Scan a bill, split it in seconds",
+                color = SabaiWhite,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
 }
 
 @Composable
-private fun HomeFeatureCard(
-    icon: String,
-    label: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
+private fun RecentGroupsSection(
+    groups: List<RecentGroupUi>,
+    onGroupClick: (RecentGroupUi) -> Unit
 ) {
     Box(
-        modifier = modifier
-            .aspectRatio(1f)
-            .clip(RoundedCornerShape(24.dp))
-            .background(SabaiWhite.copy(alpha = 0.10f))
-            .border(1.dp, SabaiWhite.copy(alpha = 0.22f), RoundedCornerShape(24.dp))
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(SabaiYellowLight.copy(alpha = 0.18f))
+            .padding(16.dp)
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(text = icon, fontSize = 34.sp)
-            Spacer(modifier = Modifier.height(10.dp))
+        Column {
             Text(
-                text = label,
-                color = SabaiWhite,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold,
-                textAlign = TextAlign.Center
+                text = "Recent Groups",
+                color = SabaiBlack,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold
             )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            groups.forEachIndexed { index, group ->
+                RecentGroupRow(group = group, onClick = { onGroupClick(group) })
+                if (index != groups.lastIndex) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun WavingPenguinGif(modifier: Modifier = Modifier) {
-    val context = LocalContext.current
-    val gifLoader = remember(context) {
-        ImageLoader.Builder(context)
-            .components { add(GifDecoder.Factory()) }
-            .build()
+private fun RecentGroupRow(group: RecentGroupUi, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(SabaiWhite)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = group.name,
+                color = SabaiBlack,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = "${group.peopleCount} people · ฿${"%,.0f".format(group.totalAmount)}",
+                color = SabaiGray,
+                fontSize = 13.sp
+            )
+        }
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        StatusBadge(status = group.status)
+    }
+}
+
+@Composable
+private fun StatusBadge(status: GroupStatus) {
+    val (background, textColor, label) = when (status) {
+        GroupStatus.ACTIVE -> Triple(SabaiYellowLight.copy(alpha = 0.6f), SabaiYellowDark, "ACTIVE")
+        GroupStatus.SETTLED -> Triple(SabaiNavy.copy(alpha = 0.12f), SabaiNavy, "SETTLED")
     }
 
-    AsyncImage(
-        model = "file:///android_asset/penguin_wave.gif",
-        contentDescription = "Waving penguin",
-        imageLoader = gifLoader,
-        modifier = modifier
-    )
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(background)
+            .padding(horizontal = 10.dp, vertical = 5.dp)
+    ) {
+        Text(
+            text = label,
+            color = textColor,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold
+        )
+    }
 }
