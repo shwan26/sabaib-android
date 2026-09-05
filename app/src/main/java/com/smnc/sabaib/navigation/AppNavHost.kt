@@ -7,6 +7,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -15,9 +16,9 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.smnc.sabaib.data.AuthRepository
 import com.smnc.sabaib.ui.charges.ChargesScreen
-import com.smnc.sabaib.ui.group.GroupScreen
 import com.smnc.sabaib.ui.home.HomeScreen
 import com.smnc.sabaib.ui.join.JoinBillScreen
+import com.smnc.sabaib.ui.landing.LandingScreen
 import com.smnc.sabaib.ui.login.ForgotPasswordScreen
 import com.smnc.sabaib.ui.login.LoginScreen
 import com.smnc.sabaib.ui.participants.ParticipantsScreen
@@ -26,6 +27,7 @@ import com.smnc.sabaib.ui.review.ReviewScreen
 import com.smnc.sabaib.ui.room.BillRoomScreen
 import com.smnc.sabaib.ui.scan.ScanScreen
 import com.smnc.sabaib.ui.split.SplitScreen
+import com.smnc.sabaib.util.OnboardingPrefs
 import com.smnc.sabaib.viewmodel.BillViewModel
 
 @Composable
@@ -34,10 +36,14 @@ fun AppNavHost() {
     val navController = rememberNavController()
     val billViewModel: BillViewModel = viewModel()
     val authRepository = remember { AuthRepository() }
+    val context = LocalContext.current
+    val startDestination = remember {
+        if (OnboardingPrefs.hasSeenLanding(context)) Screen.Home.route else Screen.Landing.route
+    }
 
     NavHost(
         navController = navController,
-        startDestination = Screen.Home.route,
+        startDestination = startDestination,
         enterTransition = {
             slideInHorizontally(initialOffsetX = { it }) + fadeIn()
         },
@@ -51,6 +57,17 @@ fun AppNavHost() {
             slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
         }
     ) {
+
+        composable(Screen.Landing.route) {
+            LandingScreen(
+                onGetStarted = {
+                    OnboardingPrefs.markLandingSeen(context)
+                    navController.navigate("login/home") {
+                        popUpTo(Screen.Landing.route) { inclusive = true }
+                    }
+                }
+            )
+        }
 
         composable(Screen.Home.route) {
             HomeScreen(
@@ -103,6 +120,9 @@ fun AppNavHost() {
                     billViewModel = billViewModel,
                     onContinue = {
                         navController.navigate(Screen.Review.route)
+                    },
+                    onBack = {
+                        navController.popBackStack()
                     }
                 )
             } else {
@@ -118,16 +138,10 @@ fun AppNavHost() {
             ReviewScreen(
                 billViewModel = billViewModel,
                 onContinue = {
-                    navController.navigate(Screen.Group.route)
-                }
-            )
-        }
-
-        composable(Screen.Group.route) {
-            GroupScreen(
-                billViewModel = billViewModel,
-                onGroupCreated = {
                     navController.navigate(Screen.BillRoom.route)
+                },
+                onBack = {
+                    navController.popBackStack()
                 }
             )
         }
