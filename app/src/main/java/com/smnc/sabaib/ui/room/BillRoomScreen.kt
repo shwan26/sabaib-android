@@ -239,7 +239,7 @@ fun BillRoomScreen(
                         onClick = {
                             val trimmed = friendName.trim()
                             if (trimmed.isNotEmpty()) {
-                                billViewModel.addParticipant(name = trimmed)
+                                billViewModel.addParticipantAndPersist(billId = bill.id, name = trimmed)
                                 friendName = ""
                             }
                         },
@@ -268,7 +268,7 @@ fun BillRoomScreen(
                                 participant = participant,
                                 color = avatarColors[index % avatarColors.size],
                                 onRemove = {
-                                    billViewModel.removeParticipant(participant.id)
+                                    billViewModel.removeParticipantAndPersist(participant.id)
                                 }
                             )
                         }

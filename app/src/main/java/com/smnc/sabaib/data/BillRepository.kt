@@ -5,8 +5,11 @@ import com.smnc.sabaib.model.ReceiptItem
 import com.smnc.sabaib.util.generateGroupCode
 import io.github.jan.supabase.postgrest.exception.PostgrestRestException
 import io.github.jan.supabase.postgrest.postgrest
+import java.time.Instant
+import java.time.temporal.ChronoUnit
 
 private const val UNIQUE_VIOLATION = "23505"
+private const val BILL_RETENTION_DAYS = 7L
 
 class BillRepository {
 
@@ -32,6 +35,11 @@ class BillRepository {
         return billRow
     }
 
+    suspend fun findByCode(code: String): BillRow? =
+        postgrest["bills"].select {
+            filter { eq("code", code) }
+        }.decodeSingleOrNull()
+
     private suspend fun insertBill(ownerId: String, bill: Bill, code: String): BillRow =
         postgrest["bills"].insert(
             BillRow(
@@ -45,7 +53,8 @@ class BillRepository {
                 vatAmount = bill.vatAmount,
                 discountAmount = bill.discount,
                 totalAmount = bill.total,
-                status = "waiting"
+                status = "waiting",
+                deleteAfter = Instant.now().plus(BILL_RETENTION_DAYS, ChronoUnit.DAYS)
             )
         ) { select() }.decodeSingle()
 

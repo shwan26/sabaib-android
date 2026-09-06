@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -34,6 +35,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -58,6 +60,10 @@ import com.journeyapps.barcodescanner.BarcodeResult
 import com.journeyapps.barcodescanner.BarcodeView
 import com.journeyapps.barcodescanner.DefaultDecoderFactory
 import com.smnc.sabaib.R
+import com.smnc.sabaib.data.AuthRepository
+import com.smnc.sabaib.data.BillRepository
+import com.smnc.sabaib.data.ProfileRepository
+import com.smnc.sabaib.data.toUserMessage
 import com.smnc.sabaib.model.JoinMethod
 import com.smnc.sabaib.ui.theme.SabaiBlack
 import com.smnc.sabaib.ui.theme.SabaiGray
@@ -65,6 +71,7 @@ import com.smnc.sabaib.ui.theme.SabaiOffWhite
 import com.smnc.sabaib.ui.theme.SabaiWhite
 import com.smnc.sabaib.ui.theme.SabaiYellow
 import com.smnc.sabaib.viewmodel.BillViewModel
+import kotlinx.coroutines.launch
 
 private enum class JoinTab {
     EnterCode, ScanQr
@@ -90,6 +97,9 @@ private fun extractGroupCode(scannedText: String): String {
 @Composable
 fun JoinBillScreen(
     billViewModel: BillViewModel,
+    authRepository: AuthRepository,
+    profileRepository: ProfileRepository = ProfileRepository(),
+    billRepository: BillRepository = BillRepository(),
     initialCode: String = "",
     onJoined: () -> Unit,
     onBack: () -> Unit
@@ -97,23 +107,47 @@ fun JoinBillScreen(
     var selectedTab by remember { mutableStateOf(JoinTab.EnterCode) }
 
     var billCode by remember { mutableStateOf(initialCode) }
-    var name by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var scannedCode by remember { mutableStateOf<String?>(null) }
+    var isJoining by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
 
     fun attemptJoin() {
-        if (billViewModel.isValidGroupCode(billCode)) {
+        val userId = authRepository.currentUserId()
+        if (userId == null) {
+            errorMessage = "Please log in to join"
+            return
+        }
 
-            billViewModel.addParticipant(
-                name = name,
-                joinMethod = JoinMethod.SELF_JOINED
-            )
+        isJoining = true
+        errorMessage = null
 
-            errorMessage = null
-            onJoined()
+        coroutineScope.launch {
+            try {
+                val billRow = billRepository.findByCode(billCode.trim())
+                if (billRow?.id == null) {
+                    errorMessage = "Group code not found"
+                    return@launch
+                }
 
-        } else {
-            errorMessage = "Group code not found"
+                val profile = runCatching { profileRepository.getProfile(userId) }.getOrNull()
+                val name = profile?.displayName?.takeIf { it.isNotBlank() }
+                    ?: authRepository.currentUserEmail()?.substringBefore("@")
+                    ?: "Guest"
+
+                billViewModel.addParticipantAndPersist(
+                    billId = billRow.id,
+                    name = name,
+                    joinMethod = JoinMethod.SELF_JOINED,
+                    userId = userId
+                )
+
+                onJoined()
+            } catch (e: Exception) {
+                errorMessage = e.toUserMessage()
+            } finally {
+                isJoining = false
+            }
         }
     }
 
@@ -193,21 +227,6 @@ fun JoinBillScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("Your name") },
-                singleLine = true,
-                shape = RoundedCornerShape(16.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = SabaiBlack,
-                    unfocusedBorderColor = SabaiBlack
-                )
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
             Button(
                 onClick = { attemptJoin() },
                 modifier = Modifier
@@ -218,9 +237,17 @@ fun JoinBillScreen(
                     containerColor = SabaiYellow,
                     contentColor = SabaiBlack
                 ),
-                enabled = billCode.isNotBlank() && name.isNotBlank()
+                enabled = billCode.isNotBlank() && !isJoining
             ) {
-                Text("Join Group", fontWeight = FontWeight.Bold)
+                if (isJoining) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = SabaiBlack,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Text("Join Group", fontWeight = FontWeight.Bold)
+                }
             }
 
             errorMessage?.let { message ->

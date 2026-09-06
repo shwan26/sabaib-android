@@ -12,7 +12,7 @@ sealed class Screen(val route: String) {
     data object Payment : Screen("payment")
     data object UserPayment : Screen("user_payment/{participantId}")
     //data object JoinBill : Screen("join_bill")
-    data object JoinBillWithCode : Screen("join_bill/{code}")
+    data object JoinBillWithCode : Screen("join_bill?code={code}")
     data object Participants : Screen("participants")
     data object BillRoom: Screen("bill_room")
     data object ForgotPassword : Screen("forgot_password")

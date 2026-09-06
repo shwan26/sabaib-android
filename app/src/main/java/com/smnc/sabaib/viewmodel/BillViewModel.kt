@@ -6,6 +6,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.smnc.sabaib.data.BillRepository
+import com.smnc.sabaib.data.ParticipantRepository
+import com.smnc.sabaib.data.ParticipantRow
 import com.smnc.sabaib.data.ProfileRepository
 import com.smnc.sabaib.data.toUserMessage
 import com.smnc.sabaib.domain.charges.ChargeCalculator
@@ -28,7 +30,8 @@ sealed class BillSaveState {
 
 class BillViewModel(
     private val billRepository: BillRepository = BillRepository(),
-    private val profileRepository: ProfileRepository = ProfileRepository()
+    private val profileRepository: ProfileRepository = ProfileRepository(),
+    private val participantRepository: ParticipantRepository = ParticipantRepository()
 ) : ViewModel() {
 
     private val _bill = mutableStateOf(
@@ -112,18 +115,23 @@ class BillViewModel(
     }
 
     /**
-     * Persists the current bill (and its items) to Supabase, then records
-     * a free scan against the owner's rolling 30-day quota. Losing the
-     * scan-count update doesn't fail the whole operation - the bill itself
-     * is what matters to the user.
+     * Persists the current bill (and its items) to Supabase, creates the
+     * host's own participant row (named from their profile, falling back to
+     * [hostNameFallback]), then records a free scan against the owner's
+     * rolling 30-day quota. Losing the scan-count update doesn't fail the
+     * whole operation - the bill itself is what matters to the user.
      */
-    fun saveBillAndProceed(ownerId: String) {
+    fun saveBillAndProceed(ownerId: String, hostNameFallback: String) {
         _saveState.value = BillSaveState.Saving
 
         viewModelScope.launch {
             try {
                 val row = billRepository.saveBill(ownerId, _bill.value)
                 _bill.value = _bill.value.copy(id = row.id!!)
+
+                val profile = runCatching { profileRepository.getProfile(ownerId) }.getOrNull()
+                val hostName = profile?.displayName?.takeIf { it.isNotBlank() } ?: hostNameFallback
+                createHostAndPersist(billId = row.id, userId = ownerId, displayName = hostName)
 
                 runCatching {
                     profileRepository.incrementFreeScanUsageIfNeeded(ownerId)
@@ -141,10 +149,18 @@ class BillViewModel(
         _saveState.value = BillSaveState.Idle
     }
 
-    fun addParticipant(
+    /**
+     * Adds [name] to the local participant list immediately (optimistic),
+     * then writes the row through to Supabase in the background. A write
+     * failure is logged but doesn't roll back the local state or surface an
+     * error to the user - this is best-effort, unlike the bill save itself.
+     */
+    fun addParticipantAndPersist(
+        billId: String,
         name: String,
         isHost: Boolean = false,
-        joinMethod: JoinMethod = JoinMethod.HOST_ADDED
+        joinMethod: JoinMethod = JoinMethod.HOST_ADDED,
+        userId: String? = null
     ): Participant? {
         val trimmedName = name.trim()
 
@@ -175,17 +191,46 @@ class BillViewModel(
             _currentParticipantId.value = participant.id
         }
 
+        viewModelScope.launch {
+            runCatching {
+                participantRepository.insertParticipant(
+                    ParticipantRow(
+                        id = participant.id,
+                        billId = billId,
+                        userId = userId,
+                        name = participant.name,
+                        role = "member"
+                    )
+                )
+            }.onFailure {
+                Log.e("BillViewModel", "Failed to persist participant", it)
+            }
+        }
+
         return participant
     }
 
-    fun removeParticipant(participantId: String) {
+    fun removeParticipantAndPersist(participantId: String) {
         _participants.value =
             _participants.value.filterNot { participant ->
                 participant.id == participantId
             }
+
+        viewModelScope.launch {
+            runCatching {
+                participantRepository.deleteParticipant(participantId)
+            }.onFailure {
+                Log.e("BillViewModel", "Failed to delete participant", it)
+            }
+        }
     }
 
-    fun createHost(name: String) {
+    /**
+     * Creates the host's own participant row (optimistic local update, then
+     * best-effort write-through to Supabase - see [addParticipantAndPersist]
+     * for the same failure-handling rationale).
+     */
+    fun createHostAndPersist(billId: String, userId: String, displayName: String) {
 
         if (_participants.value.any {
                 it.isHost
@@ -194,14 +239,30 @@ class BillViewModel(
         }
 
         val host = Participant(
-            id = System.currentTimeMillis().toString(),
-            name = name,
+            id = UUID.randomUUID().toString(),
+            name = displayName,
             isHost = true,
             joinMethod = JoinMethod.HOST_ADDED
         )
 
         _participants.value += host
         _currentParticipantId.value = host.id
+
+        viewModelScope.launch {
+            runCatching {
+                participantRepository.insertParticipant(
+                    ParticipantRow(
+                        id = host.id,
+                        billId = billId,
+                        userId = userId,
+                        name = host.name,
+                        role = "host"
+                    )
+                )
+            }.onFailure {
+                Log.e("BillViewModel", "Failed to persist host participant", it)
+            }
+        }
     }
 
     /**
@@ -519,14 +580,5 @@ class BillViewModel(
                     total
             )
         }
-    }
-
-
-    fun isValidGroupCode(code: String): Boolean {
-
-        return _bill.value.code.equals(
-            code.trim(),
-            ignoreCase = true
-        )
     }
 }

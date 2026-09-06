@@ -1,5 +1,6 @@
 package com.smnc.sabaib.data
 
+import java.time.Instant
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -20,5 +21,8 @@ data class BillRow(
     // declared default (encodeDefaults = false), which would silently drop
     // this field and let Postgres fall back to its own column default
     // ('draft'), violating bills_status_check.
-    val status: String
+    val status: String,
+    @SerialName("delete_after")
+    @Serializable(with = InstantColumnSerializer::class)
+    val deleteAfter: Instant? = null
 )

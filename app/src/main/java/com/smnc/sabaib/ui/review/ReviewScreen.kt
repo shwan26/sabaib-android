@@ -381,8 +381,9 @@ fun ReviewScreen(
                             discount = discountAmount,
                             isVatIncluded = vatIncluded
                         )
-                        billViewModel.createHost("You")
-                        billViewModel.saveBillAndProceed(ownerId)
+                        val hostNameFallback =
+                            authRepository.currentUserEmail()?.substringBefore("@") ?: "Host"
+                        billViewModel.saveBillAndProceed(ownerId, hostNameFallback)
                     },
                     enabled = saveState != BillSaveState.Saving,
                     colors = ButtonDefaults.buttonColors(

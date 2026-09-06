@@ -115,7 +115,7 @@ fun AppNavHost() {
                     }
                 },
                 onJoinBill = {
-                    navController.navigate(Screen.JoinBillWithCode.route)
+                    navController.navigate("join_bill")
                 }
             )
         }
@@ -157,6 +157,7 @@ fun AppNavHost() {
                 onAuthSuccess = {
                     val target = when (redirect) {
                         "scan" -> Screen.Scan.route
+                        "join_bill" -> "join_bill"
                         else -> Screen.Home.route
                     }
                     navController.navigate(target) {
@@ -223,7 +224,10 @@ fun AppNavHost() {
             )
         }
 
-        composable(Screen.JoinBillWithCode.route) {
+        composable(
+            route = Screen.JoinBillWithCode.route,
+            arguments = listOf(navArgument("code") { type = NavType.StringType; defaultValue = "" })
+        ) {
                 backStackEntry ->
 
             val code =
@@ -231,18 +235,27 @@ fun AppNavHost() {
                     ?.getString("code")
                     .orEmpty()
 
-            JoinBillScreen(
-                billViewModel = billViewModel,
-                initialCode = code,
-                onJoined = {
-                    navController.navigate(
-                        Screen.Participants.route
-                    )
-                },
-                onBack = {
-                    navController.popBackStack()
+            if (authRepository.isLoggedIn()) {
+                JoinBillScreen(
+                    billViewModel = billViewModel,
+                    authRepository = authRepository,
+                    initialCode = code,
+                    onJoined = {
+                        navController.navigate(
+                            Screen.Participants.route
+                        )
+                    },
+                    onBack = {
+                        navController.popBackStack()
+                    }
+                )
+            } else {
+                LaunchedEffect(Unit) {
+                    navController.navigate("login/join_bill") {
+                        popUpTo("join_bill") { inclusive = true }
+                    }
                 }
-            )
+            }
         }
 
         composable(Screen.Participants.route) {
