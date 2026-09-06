@@ -62,6 +62,9 @@ android {
 dependencies {
     implementation(libs.core)
     implementation(libs.mlkit.text.recognition)
+    implementation(libs.zxing.android.embedded) {
+        exclude(group = "com.google.zxing", module = "core")
+    }
     implementation(libs.androidx.exifinterface)
     implementation(platform("io.github.jan-tennert.supabase:bom:3.8.0"))
 
