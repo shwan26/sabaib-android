@@ -1,6 +1,8 @@
 package com.smnc.sabaib.ui.payment
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -9,8 +11,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -21,17 +25,28 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import coil3.compose.AsyncImagePainter
 import com.smnc.sabaib.R
 import com.smnc.sabaib.ui.theme.SabaiBlack
+import com.smnc.sabaib.ui.theme.SabaiError
 import com.smnc.sabaib.ui.theme.SabaiGray
+import com.smnc.sabaib.ui.theme.SabaiOffWhite
+import com.smnc.sabaib.ui.theme.SabaiSuccess
 import com.smnc.sabaib.ui.theme.SabaiYellow
+import com.smnc.sabaib.util.shareQrCode
 import com.smnc.sabaib.viewmodel.BillViewModel
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -40,6 +55,7 @@ fun UserPaymentScreen(
     participantId: String,
     onBack: () -> Unit,
     onDone: () -> Unit,
+    onUndo: () -> Unit,
     onBackToHome: () -> Unit
 ) {
 
@@ -55,6 +71,11 @@ fun UserPaymentScreen(
 
     val isPaid = paidStatus[participantId] == true
     val name = participant?.name ?: "Participant"
+    val amountText = "%.0f".format(total)
+    val qrUrl = "https://promptpay.io/$promptPayNumber/$amountText.png"
+
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
 
     Scaffold(
         topBar = {
@@ -79,51 +100,114 @@ fun UserPaymentScreen(
                 .padding(16.dp)
         ) {
 
-            if (isPaid) {
+            if (!isPaid) {
                 Text(
-                    text = "Paid",
-                    fontWeight = FontWeight.Bold,
-                    style = MaterialTheme.typography.headlineSmall
-                )
-            } else {
-                AsyncImage(
-                    model = "https://promptpay.io/$promptPayNumber/${"%.0f".format(total)}.png",
-                    contentDescription = "PromptPay QR code",
-                    modifier = Modifier.size(220.dp)
+                    text = "Scan this QR code to receive money.",
+                    style = MaterialTheme.typography.bodySmall
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
+            }
 
-                Text(
-                    text = "฿${"%.0f".format(total)}",
-                    fontWeight = FontWeight.Bold,
-                    style = MaterialTheme.typography.headlineMedium
-                )
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(SabaiOffWhite, RoundedCornerShape(20.dp))
+                    .padding(20.dp)
+            ) {
+                if (isPaid) {
+                    Text(
+                        text = "Paid",
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.headlineSmall
+                    )
+                } else {
+                    var qrState by remember {
+                        mutableStateOf<AsyncImagePainter.State>(AsyncImagePainter.State.Empty)
+                    }
+
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier.size(220.dp)
+                    ) {
+                        AsyncImage(
+                            model = qrUrl,
+                            contentDescription = "PromptPay QR code",
+                            onState = { qrState = it },
+                            modifier = Modifier.size(220.dp)
+                        )
+
+                        when (qrState) {
+                            is AsyncImagePainter.State.Loading -> CircularProgressIndicator()
+                            is AsyncImagePainter.State.Error -> Text(
+                                text = "Couldn't load QR",
+                                color = SabaiGray,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            else -> Unit
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text(
+                        text = "฿$amountText",
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.headlineMedium
+                    )
+                }
+            }
+
+            if (!isPaid) {
+                Spacer(modifier = Modifier.height(16.dp))
+
+                OutlinedButton(
+                    onClick = {
+                        coroutineScope.launch {
+                            shareQrCode(
+                                context = context,
+                                qrUrl = qrUrl,
+                                caption = "$name's PromptPay — ฿$amountText"
+                            )
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                ) {
+                    Text("Share this Promptpay")
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            Text(
-                text = name,
-                fontWeight = FontWeight.SemiBold,
-                style = MaterialTheme.typography.bodyLarge
-            )
+            Row {
+                Text(
+                    text = "Status: ",
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.bodyLarge
+                )
+
+                Text(
+                    text = if (isPaid) "Paid" else "Unpaid",
+                    color = if (isPaid) SabaiSuccess else SabaiError,
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.bodyLarge
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = if (participant?.isHost == true) "(host)" else if (isPaid) "Paid" else "Unpaid",
+                text = if (isPaid) {
+                    "Tapped by mistake? Tap \"Undo\" to revert."
+                } else {
+                    "Once you received payment, tap \"Done\"."
+                },
                 color = SabaiGray,
                 style = MaterialTheme.typography.bodySmall
             )
-
-            if (!isPaid) {
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Text(
-                    text = "Left - ${"%.0f".format(total)}",
-                    color = SabaiGray,
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            }
 
             Spacer(modifier = Modifier.weight(1f))
 
@@ -141,7 +225,16 @@ fun UserPaymentScreen(
                     Text("Back to Home")
                 }
 
-                if (!isPaid) {
+                if (isPaid) {
+                    OutlinedButton(
+                        onClick = onUndo,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(56.dp)
+                    ) {
+                        Text("Undo", fontWeight = FontWeight.Bold)
+                    }
+                } else {
                     Button(
                         onClick = onDone,
                         colors = ButtonDefaults.buttonColors(

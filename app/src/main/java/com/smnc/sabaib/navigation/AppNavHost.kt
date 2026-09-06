@@ -222,7 +222,9 @@ fun AppNavHost() {
                 },
                 onDone = {
                     billViewModel.markParticipantPaid(participantId)
-                    navController.popBackStack()
+                },
+                onUndo = {
+                    billViewModel.markParticipantUnpaid(participantId)
                 },
                 onBackToHome = {
                     navController.navigate(Screen.Home.route) {

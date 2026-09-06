@@ -8,7 +8,6 @@ import com.smnc.sabaib.model.Bill
 import com.smnc.sabaib.model.ItemSelection
 import com.smnc.sabaib.model.JoinMethod
 import com.smnc.sabaib.model.Participant
-import com.smnc.sabaib.model.ParticipantSplit
 import com.smnc.sabaib.model.ParticipantTotal
 import com.smnc.sabaib.model.ReceiptItem
 import com.smnc.sabaib.util.generateGroupCode
@@ -67,6 +66,10 @@ class BillViewModel : ViewModel() {
 
     fun markParticipantPaid(participantId: String) {
         _paidStatus.value = _paidStatus.value + (participantId to true)
+    }
+
+    fun markParticipantUnpaid(participantId: String) {
+        _paidStatus.value = _paidStatus.value - participantId
     }
 
     fun updateItems(items: List<ReceiptItem>) {
@@ -340,51 +343,6 @@ class BillViewModel : ViewModel() {
         }
     }
 
-    fun calculateParticipantSplits():
-            List<ParticipantSplit> {
-
-        return _participants.value.map {
-                participant ->
-
-            ParticipantSplit(
-                participantId =
-                    participant.id,
-
-                participantName =
-                    participant.name,
-
-                subtotal =
-                    calculateParticipantSubtotal(
-                        participant.id
-                    )
-            )
-        }
-    }
-
-    fun selectedItemsTotal(): Double {
-
-        return _bill.value.items
-            .filter { item ->
-
-                val selection = getSelectionForItem(item.id)
-
-                selection?.participantIds?.isNotEmpty() == true
-            }
-            .sumOf {
-                itemEffectivePrice(it)
-            }
-    }
-
-    fun participantSubtotalTotal(): Double {
-
-        return _participants.value
-            .sumOf {
-                calculateParticipantSubtotal(
-                    it.id
-                )
-            }
-    }
-
     fun updateCharges(
         serviceChargeRate: Double,
         vatRate: Double,
@@ -513,13 +471,6 @@ class BillViewModel : ViewModel() {
         }
     }
 
-    fun participantTotalsSum(): Double {
-
-        return calculateParticipantTotals()
-            .sumOf {
-                it.total
-            }
-    }
 
     fun isValidGroupCode(code: String): Boolean {
 
