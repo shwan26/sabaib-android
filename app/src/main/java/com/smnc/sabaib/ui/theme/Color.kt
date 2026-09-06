@@ -26,3 +26,4 @@ val SabaiBeakOrange = Color(0xFFF5A623)
 // Status colors kept neutral/on-brand
 val SabaiError = Color(0xFFD32F2F)
 val SabaiErrorLight = Color(0xFFFFDAD6)
+val SabaiSuccess = Color(0xFF2E7D32)

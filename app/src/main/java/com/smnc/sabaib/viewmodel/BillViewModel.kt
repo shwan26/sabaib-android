@@ -6,8 +6,8 @@ import androidx.lifecycle.ViewModel
 import com.smnc.sabaib.domain.charges.ChargeCalculator
 import com.smnc.sabaib.model.Bill
 import com.smnc.sabaib.model.ItemSelection
+import com.smnc.sabaib.model.JoinMethod
 import com.smnc.sabaib.model.Participant
-import com.smnc.sabaib.model.ParticipantSplit
 import com.smnc.sabaib.model.ParticipantTotal
 import com.smnc.sabaib.model.ReceiptItem
 import com.smnc.sabaib.util.generateGroupCode
@@ -40,6 +40,38 @@ class BillViewModel : ViewModel() {
 
     val participants: State<List<Participant>> = _participants
 
+    // The participant this device/session is acting as: the host who
+    // created the room, or the guest who just joined it themselves.
+    private val _currentParticipantId =
+        mutableStateOf<String?>(null)
+
+    val currentParticipantId: State<String?> =
+        _currentParticipantId
+
+    private val _promptPayNumber =
+        mutableStateOf<String?>(null)
+
+    val promptPayNumber: State<String?> =
+        _promptPayNumber
+
+    private val _paidStatus =
+        mutableStateOf<Map<String, Boolean>>(emptyMap())
+
+    val paidStatus: State<Map<String, Boolean>> =
+        _paidStatus
+
+    fun updatePromptPayNumber(number: String) {
+        _promptPayNumber.value = number
+    }
+
+    fun markParticipantPaid(participantId: String) {
+        _paidStatus.value = _paidStatus.value + (participantId to true)
+    }
+
+    fun markParticipantUnpaid(participantId: String) {
+        _paidStatus.value = _paidStatus.value - participantId
+    }
+
     fun updateItems(items: List<ReceiptItem>) {
 
         val subtotal = items.sumOf {
@@ -61,11 +93,12 @@ class BillViewModel : ViewModel() {
 
     fun addParticipant(
         name: String,
-        isHost: Boolean = false
-    ) {
+        isHost: Boolean = false,
+        joinMethod: JoinMethod = JoinMethod.HOST_ADDED
+    ): Participant? {
         val trimmedName = name.trim()
 
-        if (trimmedName.isBlank()) return
+        if (trimmedName.isBlank()) return null
 
         val alreadyExists =
             _participants.value.any { participant ->
@@ -75,15 +108,24 @@ class BillViewModel : ViewModel() {
                 )
             }
 
-        if (alreadyExists) return
+        if (alreadyExists) return null
 
         val participant = Participant(
             id = UUID.randomUUID().toString(),
             name = trimmedName,
-            isHost = isHost
+            isHost = isHost,
+            joinMethod = joinMethod
         )
 
         _participants.value += participant
+
+        // A participant who joins themselves (via QR/code) is the one
+        // driving this session, so this session now acts as them.
+        if (joinMethod == JoinMethod.SELF_JOINED) {
+            _currentParticipantId.value = participant.id
+        }
+
+        return participant
     }
 
     fun removeParticipant(participantId: String) {
@@ -104,10 +146,98 @@ class BillViewModel : ViewModel() {
         val host = Participant(
             id = System.currentTimeMillis().toString(),
             name = name,
-            isHost = true
+            isHost = true,
+            joinMethod = JoinMethod.HOST_ADDED
         )
 
         _participants.value += host
+        _currentParticipantId.value = host.id
+    }
+
+    /**
+     * Whether [actingParticipantId] is allowed to change item selections
+     * on behalf of [targetParticipantId]:
+     * - Nobody can when the bill is split evenly.
+     * - Anyone can manage their own selections.
+     * - The host can additionally manage participants they added manually
+     *   (those can't select for themselves since they never opened the app).
+     */
+    fun canControlParticipant(
+        actingParticipantId: String?,
+        targetParticipantId: String
+    ): Boolean {
+
+        if (_bill.value.isSplitEvenly) return false
+        if (actingParticipantId == null) return false
+        if (actingParticipantId == targetParticipantId) return true
+
+        val actingParticipant =
+            _participants.value.find { it.id == actingParticipantId }
+                ?: return false
+
+        val targetParticipant =
+            _participants.value.find { it.id == targetParticipantId }
+                ?: return false
+
+        return actingParticipant.isHost &&
+                targetParticipant.joinMethod == JoinMethod.HOST_ADDED
+    }
+
+    fun setSplitEvenly(isSplitEvenly: Boolean) {
+        _bill.value = _bill.value.copy(
+            isSplitEvenly = isSplitEvenly
+        )
+    }
+
+    /** Item price with this item's share of VAT/service charge folded in. */
+    fun itemEffectivePrice(item: ReceiptItem): Double {
+
+        val base = item.price * item.quantity
+        val withService = base * (1 + _bill.value.serviceChargeRate)
+
+        return if (_bill.value.isVatIncluded) {
+            withService
+        } else {
+            withService * (1 + _bill.value.vatRate)
+        }
+    }
+
+    private fun rawItemsSubtotalForParticipant(
+        participantId: String
+    ): Double {
+
+        var total = 0.0
+
+        _bill.value.items.forEach { item ->
+
+            val selection =
+                _itemSelections.value.find {
+                    it.itemId == item.id
+                }
+
+            val selectedParticipants =
+                selection?.participantIds
+                    ?: emptySet()
+
+            if (
+                participantId in selectedParticipants &&
+                selectedParticipants.isNotEmpty()
+            ) {
+                total += (item.price * item.quantity) /
+                        selectedParticipants.size
+            }
+        }
+
+        return total
+    }
+
+    private fun evenSplitTotal(): Double {
+        return _bill.value.items.sumOf { itemEffectivePrice(it) }
+    }
+
+    private fun evenSplitPerPerson(): Double {
+        val count = _participants.value.size
+        return if (count > 0) evenSplitTotal() / count else 0.0
     }
 
     fun toggleItemSelection(
@@ -165,6 +295,10 @@ class BillViewModel : ViewModel() {
         participantId: String
     ): Double {
 
+        if (_bill.value.isSplitEvenly) {
+            return evenSplitPerPerson()
+        }
+
         var total = 0.0
 
         _bill.value.items.forEach {
@@ -185,11 +319,8 @@ class BillViewModel : ViewModel() {
                 selectedParticipants.isNotEmpty()
             ) {
 
-                val itemTotal =
-                    item.price * item.quantity
-
                 total +=
-                    itemTotal /
+                    itemEffectivePrice(item) /
                             selectedParticipants.size
             }
         }
@@ -198,6 +329,8 @@ class BillViewModel : ViewModel() {
     }
 
     fun hasUnclaimedItems(): Boolean {
+
+        if (_bill.value.isSplitEvenly) return false
 
         return _bill.value.items.any {
                 item ->
@@ -208,106 +341,6 @@ class BillViewModel : ViewModel() {
                     selection.participantIds
                         .isEmpty()
         }
-    }
-
-    fun selectEveryoneForItem(
-        itemId: String
-    ) {
-
-        val allParticipantIds =
-            _participants.value
-                .map { it.id }
-                .toSet()
-
-        val existing =
-            _itemSelections.value.find {
-                it.itemId == itemId
-            }
-
-        if (existing == null) {
-
-            _itemSelections.value += ItemSelection(
-                                        itemId = itemId,
-                                        participantIds =
-                                            allParticipantIds
-                                    )
-
-        } else {
-
-            _itemSelections.value =
-                _itemSelections.value.map {
-
-                    if (it.itemId == itemId) {
-                        it.copy(
-                            participantIds =
-                                allParticipantIds
-                        )
-                    } else {
-                        it
-                    }
-                }
-        }
-    }
-
-    fun clearItemSelection(
-        itemId: String
-    ) {
-        _itemSelections.value =
-            _itemSelections.value.map { selection ->
-
-                if (selection.itemId == itemId) {
-                    selection.copy(
-                        participantIds = emptySet()
-                    )
-                } else {
-                    selection
-                }
-            }
-    }
-
-    fun calculateParticipantSplits():
-            List<ParticipantSplit> {
-
-        return _participants.value.map {
-                participant ->
-
-            ParticipantSplit(
-                participantId =
-                    participant.id,
-
-                participantName =
-                    participant.name,
-
-                subtotal =
-                    calculateParticipantSubtotal(
-                        participant.id
-                    )
-            )
-        }
-    }
-
-    fun selectedItemsTotal(): Double {
-
-        return _bill.value.items
-            .filter { item ->
-
-                val selection = getSelectionForItem(item.id)
-
-                selection?.participantIds?.isNotEmpty() == true
-            }
-            .sumOf {
-                it.price * it.quantity
-            }
-    }
-
-    fun participantSubtotalTotal(): Double {
-
-        return _participants.value
-            .sumOf {
-                calculateParticipantSubtotal(
-                    it.id
-                )
-            }
     }
 
     fun updateCharges(
@@ -360,38 +393,58 @@ class BillViewModel : ViewModel() {
         val subtotal =
             billValue.subtotal
 
+        val count =
+            _participants.value.size
+
         return _participants.value.map {
                 participant ->
 
-            val foodSubtotal =
-                calculateParticipantSubtotal(
+            // Raw (pre VAT/service) food cost, used only to work out this
+            // participant's fair share of the discount below.
+            val rawFoodSubtotal =
+                rawItemsSubtotalForParticipant(
                     participant.id
                 )
 
             val ratio =
                 if (subtotal > 0) {
-                    foodSubtotal / subtotal
+                    rawFoodSubtotal / subtotal
                 } else {
                     0.0
                 }
 
             val serviceShare =
-                billValue.serviceChargeAmount *
-                        ratio
+                if (billValue.isSplitEvenly) {
+                    if (count > 0) billValue.serviceChargeAmount / count else 0.0
+                } else {
+                    billValue.serviceChargeAmount * ratio
+                }
 
             val vatShare =
-                billValue.vatAmount *
-                        ratio
+                if (billValue.isSplitEvenly) {
+                    if (count > 0) billValue.vatAmount / count else 0.0
+                } else {
+                    billValue.vatAmount * ratio
+                }
 
             val discountShare =
-                billValue.discount *
-                        ratio
+                if (billValue.isSplitEvenly) {
+                    if (count > 0) billValue.discount / count else 0.0
+                } else {
+                    billValue.discount * ratio
+                }
+
+            // Already includes this participant's share of VAT/service
+            // charge (folded in per item), so the discount is the only
+            // thing left to subtract here.
+            val foodSubtotal =
+                calculateParticipantSubtotal(
+                    participant.id
+                )
 
             val total =
-                foodSubtotal +
-                        serviceShare +
-                        vatShare -
-                        discountShare
+                (foodSubtotal - discountShare)
+                    .coerceAtLeast(0.0)
 
             ParticipantTotal(
                 participantId =
@@ -401,7 +454,7 @@ class BillViewModel : ViewModel() {
                     participant.name,
 
                 foodSubtotal =
-                    foodSubtotal,
+                    rawFoodSubtotal,
 
                 serviceCharge =
                     serviceShare,
@@ -418,21 +471,6 @@ class BillViewModel : ViewModel() {
         }
     }
 
-    fun participantTotalsSum(): Double {
-
-        return calculateParticipantTotals()
-            .sumOf {
-                it.total
-            }
-    }
-
-    fun isFinalTotalBalanced(): Boolean {
-
-        return kotlin.math.abs(
-            participantTotalsSum() -
-                    _bill.value.total
-        ) < 0.01
-    }
 
     fun isValidGroupCode(code: String): Boolean {
 

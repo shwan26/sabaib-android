@@ -18,5 +18,7 @@ data class Bill(
 
     val total: Double = 0.0,
 
-    val isVatIncluded: Boolean = false
+    val isVatIncluded: Boolean = false,
+
+    val isSplitEvenly: Boolean = false
 )

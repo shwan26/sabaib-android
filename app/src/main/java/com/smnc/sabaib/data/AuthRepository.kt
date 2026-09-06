@@ -38,6 +38,10 @@ class AuthRepository {
         return auth.currentUserOrNull()?.id
     }
 
+    fun currentUserEmail(): String? {
+        return auth.currentUserOrNull()?.email
+    }
+
     // Optional: observe session changes reactively (e.g. in a splash screen)
     fun sessionStatusFlow() = auth.sessionStatus
 }

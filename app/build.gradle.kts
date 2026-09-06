@@ -60,22 +60,26 @@ android {
 }
 
 dependencies {
-    implementation("com.google.zxing:core:3.5.4")
-    implementation("com.google.mlkit:text-recognition:16.0.1")
+    implementation(libs.core)
+    implementation(libs.mlkit.text.recognition)
+    implementation(libs.zxing.android.embedded) {
+        exclude(group = "com.google.zxing", module = "core")
+    }
     implementation(libs.androidx.exifinterface)
-    implementation(platform("io.github.jan-tennert.supabase:bom:3.7.0"))
+    implementation(platform("io.github.jan-tennert.supabase:bom:3.8.0"))
 
     implementation("io.github.jan-tennert.supabase:auth-kt")
     implementation("io.github.jan-tennert.supabase:postgrest-kt")
     implementation("io.github.jan-tennert.supabase:realtime-kt")
     implementation("io.github.jan-tennert.supabase:storage-kt")
 
-
-    implementation("io.ktor:ktor-client-android:3.5.2")
+    implementation(libs.ktor.client.android)
 
     // GIF playback for Compose (animated penguin avatar)
-    implementation("io.coil-kt.coil3:coil-compose:3.3.0")
-    implementation("io.coil-kt.coil3:coil-gif:3.3.0")
+    implementation(libs.coil.compose)
+    implementation(libs.coil.gif)
+    // Network fetcher for loading http(s) images (e.g. PromptPay QR) — Coil 3 splits this out of coil-compose
+    implementation(libs.coil.network.ktor3)
     // IMPORTANT: Compose BOM for normal app dependencies
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.material3)

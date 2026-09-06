@@ -4,18 +4,26 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.smnc.sabaib.data.AuthRepository
-import com.smnc.sabaib.ui.charges.ChargesScreen
+import com.smnc.sabaib.ui.components.SabaiBottomNavBar
+import com.smnc.sabaib.ui.components.SabaiTab
+import com.smnc.sabaib.ui.groups.GroupsScreen
 import com.smnc.sabaib.ui.home.HomeScreen
 import com.smnc.sabaib.ui.join.JoinBillScreen
 import com.smnc.sabaib.ui.landing.LandingScreen
@@ -23,12 +31,17 @@ import com.smnc.sabaib.ui.login.ForgotPasswordScreen
 import com.smnc.sabaib.ui.login.LoginScreen
 import com.smnc.sabaib.ui.participants.ParticipantsScreen
 import com.smnc.sabaib.ui.payment.PaymentScreen
+import com.smnc.sabaib.ui.payment.UserPaymentScreen
+import com.smnc.sabaib.ui.profile.ProfileScreen
 import com.smnc.sabaib.ui.review.ReviewScreen
 import com.smnc.sabaib.ui.room.BillRoomScreen
 import com.smnc.sabaib.ui.scan.ScanScreen
 import com.smnc.sabaib.ui.split.SplitScreen
+import com.smnc.sabaib.ui.theme.SabaiOffWhite
 import com.smnc.sabaib.util.OnboardingPrefs
 import com.smnc.sabaib.viewmodel.BillViewModel
+
+private val MAIN_TAB_ROUTES = setOf(Screen.Home.route, Screen.Groups.route, Screen.Profile.route)
 
 @Composable
 fun AppNavHost() {
@@ -41,22 +54,43 @@ fun AppNavHost() {
         if (OnboardingPrefs.hasSeenLanding(context)) Screen.Home.route else Screen.Landing.route
     }
 
-    NavHost(
-        navController = navController,
-        startDestination = startDestination,
-        enterTransition = {
-            slideInHorizontally(initialOffsetX = { it }) + fadeIn()
-        },
-        exitTransition = {
-            slideOutHorizontally(targetOffsetX = { -it }) + fadeOut()
-        },
-        popEnterTransition = {
-            slideInHorizontally(initialOffsetX = { -it }) + fadeIn()
-        },
-        popExitTransition = {
-            slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
+    val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
+
+    Scaffold(
+        containerColor = SabaiOffWhite,
+        bottomBar = {
+            if (currentRoute in MAIN_TAB_ROUTES) {
+                val selectedTab = when (currentRoute) {
+                    Screen.Groups.route -> SabaiTab.GROUPS
+                    Screen.Profile.route -> SabaiTab.PROFILE
+                    else -> SabaiTab.HOME
+                }
+                SabaiBottomNavBar(
+                    selectedTab = selectedTab,
+                    onHomeClick = { navController.navigateToTab(Screen.Home.route) },
+                    onGroupsClick = { navController.navigateToTab(Screen.Groups.route) },
+                    onProfileClick = { navController.navigateToTab(Screen.Profile.route) }
+                )
+            }
         }
-    ) {
+    ) { paddingValues ->
+        NavHost(
+            navController = navController,
+            startDestination = startDestination,
+            modifier = Modifier.padding(paddingValues),
+            enterTransition = {
+                slideInHorizontally(initialOffsetX = { it }) + fadeIn()
+            },
+            exitTransition = {
+                slideOutHorizontally(targetOffsetX = { -it }) + fadeOut()
+            },
+            popEnterTransition = {
+                slideInHorizontally(initialOffsetX = { -it }) + fadeIn()
+            },
+            popExitTransition = {
+                slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
+            }
+        ) {
 
         composable(Screen.Landing.route) {
             LandingScreen(
@@ -80,6 +114,21 @@ fun AppNavHost() {
                 },
                 onJoinBill = {
                     navController.navigate(Screen.JoinBillWithCode.route)
+                }
+            )
+        }
+
+        composable(Screen.Groups.route) {
+            GroupsScreen()
+        }
+
+        composable(Screen.Profile.route) {
+            ProfileScreen(
+                authRepository = authRepository,
+                onLoggedOut = {
+                    navController.navigate(Screen.Landing.route) {
+                        popUpTo(0) { inclusive = true }
+                    }
                 }
             )
         }
@@ -149,15 +198,9 @@ fun AppNavHost() {
         composable(Screen.Split.route) {
             SplitScreen(
                 billViewModel = billViewModel,
-                onContinue = {
-                    navController.navigate(Screen.Charges.route)
-                }
-            )
-        }
-
-        composable(Screen.Charges.route) {
-            ChargesScreen(
-                billViewModel = billViewModel,
+                onBack = {
+                    navController.popBackStack()
+                },
                 onContinue = {
                     navController.navigate(Screen.Payment.route)
                 }
@@ -198,17 +241,68 @@ fun AppNavHost() {
         }
 
         composable(Screen.Payment.route) {
-            PaymentScreen()
+            PaymentScreen(
+                billViewModel = billViewModel,
+                onParticipantClick = { participantId ->
+                    navController.navigate("user_payment/$participantId")
+                },
+                onBackToHome = {
+                    navController.navigate(Screen.Home.route) {
+                        popUpTo(Screen.Home.route) { inclusive = false }
+                    }
+                }
+            )
+        }
+
+        composable(
+            route = Screen.UserPayment.route,
+            arguments = listOf(navArgument("participantId") { type = NavType.StringType })
+        ) { backStackEntry ->
+
+            val participantId = backStackEntry.arguments
+                ?.getString("participantId")
+                .orEmpty()
+
+            UserPaymentScreen(
+                billViewModel = billViewModel,
+                participantId = participantId,
+                onBack = {
+                    navController.popBackStack()
+                },
+                onDone = {
+                    billViewModel.markParticipantPaid(participantId)
+                },
+                onUndo = {
+                    billViewModel.markParticipantUnpaid(participantId)
+                },
+                onBackToHome = {
+                    navController.navigate(Screen.Home.route) {
+                        popUpTo(Screen.Home.route) { inclusive = false }
+                    }
+                }
+            )
         }
         composable(Screen.BillRoom.route) {
             BillRoomScreen(
                 billViewModel = billViewModel,
-                onStartSplitting = {
+                onBack = {
+                    navController.popBackStack()
+                },
+                onContinue = {
                     navController.navigate(
                         Screen.Split.route
                     )
                 }
             )
         }
+        }
+    }
+}
+
+private fun NavHostController.navigateToTab(route: String) {
+    navigate(route) {
+        popUpTo(Screen.Home.route) { saveState = true }
+        launchSingleTop = true
+        restoreState = true
     }
 }
