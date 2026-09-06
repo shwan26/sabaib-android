@@ -15,12 +15,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.smnc.sabaib.R
+import com.smnc.sabaib.data.AuthRepository
 import com.smnc.sabaib.domain.charges.ChargeCalculator
 import com.smnc.sabaib.model.ReceiptItem
 import com.smnc.sabaib.model.sampleReceiptItems
 import com.smnc.sabaib.ui.theme.SabaiBlack
 import com.smnc.sabaib.ui.theme.SabaiWhite
 import com.smnc.sabaib.ui.theme.SabaiYellow
+import com.smnc.sabaib.viewmodel.BillSaveState
 import com.smnc.sabaib.viewmodel.BillViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -30,9 +32,26 @@ import java.util.Locale
 @Composable
 fun ReviewScreen(
     billViewModel: BillViewModel,
+    authRepository: AuthRepository,
     onContinue: () -> Unit,
     onBack: () -> Unit,
 ) {
+    val saveState = billViewModel.saveState.value
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(saveState) {
+        when (saveState) {
+            is BillSaveState.Success -> {
+                billViewModel.resetSaveState()
+                onContinue()
+            }
+            is BillSaveState.Error -> {
+                snackbarHostState.showSnackbar(saveState.message)
+                billViewModel.resetSaveState()
+            }
+            else -> Unit
+        }
+    }
     // Seed from whatever the scan step already produced (or from an
     // in-progress edit if the user navigated back here). Only fall back
     // to sample data if there's genuinely nothing yet, e.g. when jumping
@@ -105,7 +124,8 @@ fun ReviewScreen(
                     }
                 }
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { paddingValues ->
 
         Column(
@@ -348,6 +368,11 @@ fun ReviewScreen(
 
                 Button(
                     onClick = {
+                        val ownerId = authRepository.currentUserId()
+                        if (ownerId == null) {
+                            return@Button
+                        }
+
                         billViewModel.updateRestaurantName(restaurantName)
                         billViewModel.updateItems(receiptItems)
                         billViewModel.updateCharges(
@@ -357,8 +382,9 @@ fun ReviewScreen(
                             isVatIncluded = vatIncluded
                         )
                         billViewModel.createHost("You")
-                        onContinue()
+                        billViewModel.saveBillAndProceed(ownerId)
                     },
+                    enabled = saveState != BillSaveState.Saving,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = SabaiYellow,
                         contentColor = SabaiBlack
@@ -368,7 +394,15 @@ fun ReviewScreen(
                         .fillMaxWidth()
                         .height(56.dp)
                 ) {
-                    Text("Continue to create Group", fontWeight = FontWeight.Bold)
+                    if (saveState == BillSaveState.Saving) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = SabaiBlack,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text("Continue to create Group", fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }

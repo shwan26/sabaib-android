@@ -201,6 +201,7 @@ fun AppNavHost() {
         composable(Screen.Review.route) {
             ReviewScreen(
                 billViewModel = billViewModel,
+                authRepository = authRepository,
                 onContinue = {
                     navController.navigate(Screen.BillRoom.route)
                 },

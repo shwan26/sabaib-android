@@ -1,8 +1,13 @@
 package com.smnc.sabaib.viewmodel
 
+import android.util.Log
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.smnc.sabaib.data.BillRepository
+import com.smnc.sabaib.data.ProfileRepository
+import com.smnc.sabaib.data.toUserMessage
 import com.smnc.sabaib.domain.charges.ChargeCalculator
 import com.smnc.sabaib.model.Bill
 import com.smnc.sabaib.model.ItemSelection
@@ -12,8 +17,19 @@ import com.smnc.sabaib.model.ParticipantTotal
 import com.smnc.sabaib.model.ReceiptItem
 import com.smnc.sabaib.util.generateGroupCode
 import java.util.UUID
+import kotlinx.coroutines.launch
 
-class BillViewModel : ViewModel() {
+sealed class BillSaveState {
+    object Idle : BillSaveState()
+    object Saving : BillSaveState()
+    object Success : BillSaveState()
+    data class Error(val message: String) : BillSaveState()
+}
+
+class BillViewModel(
+    private val billRepository: BillRepository = BillRepository(),
+    private val profileRepository: ProfileRepository = ProfileRepository()
+) : ViewModel() {
 
     private val _bill = mutableStateOf(
         Bill(
@@ -25,6 +41,10 @@ class BillViewModel : ViewModel() {
     )
 
     val bill: State<Bill> = _bill
+
+    private val _saveState = mutableStateOf<BillSaveState>(BillSaveState.Idle)
+
+    val saveState: State<BillSaveState> = _saveState
 
     private val _participants = mutableStateOf<List<Participant>>(
         emptyList()
@@ -89,6 +109,36 @@ class BillViewModel : ViewModel() {
         _bill.value = _bill.value.copy(
             restaurantName = name
         )
+    }
+
+    /**
+     * Persists the current bill (and its items) to Supabase, then records
+     * a free scan against the owner's rolling 30-day quota. Losing the
+     * scan-count update doesn't fail the whole operation - the bill itself
+     * is what matters to the user.
+     */
+    fun saveBillAndProceed(ownerId: String) {
+        _saveState.value = BillSaveState.Saving
+
+        viewModelScope.launch {
+            try {
+                val row = billRepository.saveBill(ownerId, _bill.value)
+                _bill.value = _bill.value.copy(id = row.id!!)
+
+                runCatching {
+                    profileRepository.incrementFreeScanUsageIfNeeded(ownerId)
+                }
+
+                _saveState.value = BillSaveState.Success
+            } catch (e: Exception) {
+                Log.e("BillViewModel", "Failed to save bill", e)
+                _saveState.value = BillSaveState.Error(e.toUserMessage())
+            }
+        }
+    }
+
+    fun resetSaveState() {
+        _saveState.value = BillSaveState.Idle
     }
 
     fun addParticipant(
