@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -33,9 +32,11 @@ import com.smnc.sabaib.ui.participants.ParticipantsScreen
 import com.smnc.sabaib.ui.payment.PaymentScreen
 import com.smnc.sabaib.ui.payment.UserPaymentScreen
 import com.smnc.sabaib.ui.profile.ProfileScreen
+import com.smnc.sabaib.ui.profile.ProfileViewModel
 import com.smnc.sabaib.ui.review.ReviewScreen
 import com.smnc.sabaib.ui.room.BillRoomScreen
 import com.smnc.sabaib.ui.scan.ScanScreen
+import com.smnc.sabaib.ui.settings.SettingsScreen
 import com.smnc.sabaib.ui.split.SplitScreen
 import com.smnc.sabaib.ui.theme.SabaiOffWhite
 import com.smnc.sabaib.util.OnboardingPrefs
@@ -48,6 +49,7 @@ fun AppNavHost() {
 
     val navController = rememberNavController()
     val billViewModel: BillViewModel = viewModel()
+    val profileViewModel: ProfileViewModel = viewModel()
     val authRepository = remember { AuthRepository() }
     val context = LocalContext.current
     val startDestination = remember {
@@ -125,10 +127,23 @@ fun AppNavHost() {
         composable(Screen.Profile.route) {
             ProfileScreen(
                 authRepository = authRepository,
+                profileViewModel = profileViewModel,
+                onSettingsClick = {
+                    navController.navigate(Screen.Settings.route)
+                },
                 onLoggedOut = {
                     navController.navigate(Screen.Landing.route) {
                         popUpTo(0) { inclusive = true }
                     }
+                }
+            )
+        }
+
+        composable(Screen.Settings.route) {
+            SettingsScreen(
+                profileViewModel = profileViewModel,
+                onBack = {
+                    navController.popBackStack()
                 }
             )
         }
