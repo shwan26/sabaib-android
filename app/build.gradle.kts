@@ -3,6 +3,7 @@ import java.util.Properties
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
 }
 val localProperties = Properties().apply {
     val file = rootProject.file("local.properties")
@@ -74,6 +75,7 @@ dependencies {
     implementation("io.github.jan-tennert.supabase:storage-kt")
 
     implementation(libs.ktor.client.android)
+    implementation(libs.kotlinx.serialization.json)
 
     // GIF playback for Compose (animated penguin avatar)
     implementation(libs.coil.compose)

@@ -20,5 +20,7 @@ data class Bill(
 
     val isVatIncluded: Boolean = false,
 
-    val isSplitEvenly: Boolean = false
+    val isSplitEvenly: Boolean = false,
+
+    val stage: BillStage = BillStage.WAITING
 )

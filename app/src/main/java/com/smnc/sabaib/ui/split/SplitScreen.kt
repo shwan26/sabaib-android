@@ -19,6 +19,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.smnc.sabaib.R
+import com.smnc.sabaib.model.BillStage
 import com.smnc.sabaib.model.Participant
 import com.smnc.sabaib.ui.theme.SabaiBeakOrange
 import com.smnc.sabaib.ui.theme.SabaiBlack
@@ -30,6 +31,7 @@ import com.smnc.sabaib.ui.theme.SabaiOffWhite
 import com.smnc.sabaib.ui.theme.SabaiWhite
 import com.smnc.sabaib.ui.theme.SabaiYellow
 import com.smnc.sabaib.viewmodel.BillViewModel
+import kotlinx.coroutines.delay
 
 private val avatarColors = listOf(SabaiYellow, SabaiBeakOrange, SabaiNavy, SabaiNavyLight)
 
@@ -66,6 +68,19 @@ fun SplitScreen(
 
     var promptPayInput by remember {
         mutableStateOf(billViewModel.promptPayNumber.value.orEmpty())
+    }
+
+    LaunchedEffect(bill.id) {
+        while (true) {
+            billViewModel.loadParticipants(bill.id)
+            billViewModel.pollBillState(bill.id)
+            billViewModel.loadItemClaims(bill.id)
+            delay(2000)
+        }
+    }
+
+    LaunchedEffect(bill.stage) {
+        if (bill.stage == BillStage.PAYMENT) onContinue()
     }
 
     Scaffold(
@@ -135,7 +150,8 @@ fun SplitScreen(
 
                         ParticipantSplitChip(
                             participant = participant,
-                            displayName = if (participant.id == viewerId) "You" else participant.name,
+                            displayName = participant.name,
+                            isSelf = participant.id == viewerId,
                             color = participantColors[participant.id] ?: SabaiGray,
                             amount = billViewModel.calculateParticipantSubtotal(participant.id),
                             isActive = !bill.isSplitEvenly && activeParticipantId == participant.id,
@@ -199,7 +215,7 @@ fun SplitScreen(
                             checked = bill.isSplitEvenly,
                             enabled = viewerIsHost,
                             onToggle = {
-                                billViewModel.setSplitEvenly(!bill.isSplitEvenly)
+                                billViewModel.setSplitEvenly(!bill.isSplitEvenly, bill.id)
                             }
                         )
 
@@ -257,15 +273,22 @@ fun SplitScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            val selfConfirmed = viewer?.isReady == true
+
             Button(
                 onClick = {
                     if (viewerIsHost) {
                         billViewModel.updatePromptPayNumber(promptPayInput)
+                        billViewModel.advanceStage(bill.id, BillStage.PAYMENT)
+                    } else {
+                        viewerId?.let { billViewModel.toggleReady(it, bill.id) }
                     }
-                    onContinue()
                 },
-                enabled = !hasUnclaimedItems && viewerId != null &&
-                        (!viewerIsHost || promptPayInput.isNotBlank()),
+                enabled = if (viewerIsHost) {
+                    !hasUnclaimedItems && promptPayInput.isNotBlank()
+                } else {
+                    !hasUnclaimedItems && viewerId != null && !selfConfirmed
+                },
                 colors = ButtonDefaults.buttonColors(
                     containerColor = SabaiYellow,
                     contentColor = SabaiBlack
@@ -275,7 +298,14 @@ fun SplitScreen(
                     .fillMaxWidth()
                     .height(56.dp)
             ) {
-                Text("Continue", fontWeight = FontWeight.Bold)
+                Text(
+                    text = when {
+                        viewerIsHost -> "Continue"
+                        selfConfirmed -> "Waiting for host..."
+                        else -> "Confirm"
+                    },
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
     }
@@ -285,6 +315,7 @@ fun SplitScreen(
 private fun ParticipantSplitChip(
     participant: Participant,
     displayName: String,
+    isSelf: Boolean,
     color: Color,
     amount: Double,
     isActive: Boolean,
@@ -324,9 +355,20 @@ private fun ParticipantSplitChip(
 
         Text(
             text = displayName,
+            color = if (isSelf) SabaiYellow else SabaiBlack,
             fontWeight = FontWeight.SemiBold,
             style = MaterialTheme.typography.bodyMedium
         )
+
+        if (participant.isHost) {
+            Spacer(modifier = Modifier.width(4.dp))
+
+            Text(
+                text = "Host",
+                color = SabaiGray,
+                style = MaterialTheme.typography.labelSmall
+            )
+        }
 
         Spacer(modifier = Modifier.width(4.dp))
 

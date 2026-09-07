@@ -19,6 +19,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,6 +44,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun ProfileScreen(
     authRepository: AuthRepository,
+    profileViewModel: ProfileViewModel,
     onUpgradeClick: () -> Unit = {},
     onPaymentHistoryClick: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
@@ -49,10 +52,13 @@ fun ProfileScreen(
 ) {
     val coroutineScope = rememberCoroutineScope()
     val email = authRepository.currentUserEmail()
-    val displayName = email
+    val fallbackName = email
         ?.substringBefore("@")
         ?.replaceFirstChar { it.uppercase() }
         ?: "Guest"
+    val uiState by profileViewModel.uiState.collectAsState()
+    val displayName = (uiState as? ProfileUiState.Loaded)?.displayName?.takeIf { it.isNotBlank() }
+        ?: fallbackName
 
     Column(
         modifier = Modifier
@@ -180,7 +186,12 @@ fun ProfileScreen(
                 showArrow = false,
                 onClick = {
                     coroutineScope.launch {
-                        authRepository.signOut()
+                        try {
+                            authRepository.signOut()
+                        } catch (e: Exception) {
+                            // Remote invalidation failed/timed out; still treat the
+                            // local session as ended so the user isn't stuck here.
+                        }
                         onLoggedOut()
                     }
                 }

@@ -1,10 +1,21 @@
 package com.smnc.sabaib.viewmodel
 
+import android.util.Log
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.smnc.sabaib.data.BillRepository
+import com.smnc.sabaib.data.BillRow
+import com.smnc.sabaib.data.ItemClaimRepository
+import com.smnc.sabaib.data.ItemClaimRow
+import com.smnc.sabaib.data.ParticipantRepository
+import com.smnc.sabaib.data.ParticipantRow
+import com.smnc.sabaib.data.ProfileRepository
+import com.smnc.sabaib.data.toUserMessage
 import com.smnc.sabaib.domain.charges.ChargeCalculator
 import com.smnc.sabaib.model.Bill
+import com.smnc.sabaib.model.BillStage
 import com.smnc.sabaib.model.ItemSelection
 import com.smnc.sabaib.model.JoinMethod
 import com.smnc.sabaib.model.Participant
@@ -12,8 +23,21 @@ import com.smnc.sabaib.model.ParticipantTotal
 import com.smnc.sabaib.model.ReceiptItem
 import com.smnc.sabaib.util.generateGroupCode
 import java.util.UUID
+import kotlinx.coroutines.launch
 
-class BillViewModel : ViewModel() {
+sealed class BillSaveState {
+    object Idle : BillSaveState()
+    object Saving : BillSaveState()
+    object Success : BillSaveState()
+    data class Error(val message: String) : BillSaveState()
+}
+
+class BillViewModel(
+    private val billRepository: BillRepository = BillRepository(),
+    private val profileRepository: ProfileRepository = ProfileRepository(),
+    private val participantRepository: ParticipantRepository = ParticipantRepository(),
+    private val itemClaimRepository: ItemClaimRepository = ItemClaimRepository()
+) : ViewModel() {
 
     private val _bill = mutableStateOf(
         Bill(
@@ -25,6 +49,10 @@ class BillViewModel : ViewModel() {
     )
 
     val bill: State<Bill> = _bill
+
+    private val _saveState = mutableStateOf<BillSaveState>(BillSaveState.Idle)
+
+    val saveState: State<BillSaveState> = _saveState
 
     private val _participants = mutableStateOf<List<Participant>>(
         emptyList()
@@ -60,6 +88,35 @@ class BillViewModel : ViewModel() {
     val paidStatus: State<Map<String, Boolean>> =
         _paidStatus
 
+    // Participants removed locally whose delete may not have reached
+    // Supabase yet - kept out of the roster so a poll landing mid-delete
+    // doesn't resurrect them. See [loadParticipants] / [removeParticipantAndPersist].
+    private val _pendingRemovalIds =
+        mutableStateOf<Set<String>>(emptySet())
+
+    /**
+     * Resets every piece of per-bill-flow local state to fresh defaults,
+     * including a newly generated id/code. [BillViewModel] is scoped to the
+     * whole app session (constructed once in [com.smnc.sabaib.navigation.AppNavHost]),
+     * so without this, starting a second "create a bill"/"join a bill" flow
+     * in the same session would silently reuse the first bill's id/code and
+     * leftover roster/selections. Call this at the start of both flows,
+     * before any navigation happens.
+     */
+    fun startNewBill() {
+        _bill.value = Bill(
+            id = System.currentTimeMillis().toString(),
+            code = generateGroupCode()
+        )
+        _participants.value = emptyList()
+        _itemSelections.value = emptyList()
+        _currentParticipantId.value = null
+        _promptPayNumber.value = null
+        _paidStatus.value = emptyMap()
+        _pendingRemovalIds.value = emptySet()
+        _saveState.value = BillSaveState.Idle
+    }
+
     fun updatePromptPayNumber(number: String) {
         _promptPayNumber.value = number
     }
@@ -91,22 +148,138 @@ class BillViewModel : ViewModel() {
         )
     }
 
-    fun addParticipant(
+    /**
+     * Points this session at a bill it didn't create itself - i.e. a guest
+     * joining via code/QR. Without this, [bill]'s id stays the local
+     * placeholder generated at ViewModel construction, and every downstream
+     * screen that fetches by [Bill.id] (e.g. [loadParticipants]) would query
+     * the wrong bill. Also pulls in the charge totals already computed by
+     * the host and fetches the receipt items in the background, since a
+     * guest's own [Bill] state otherwise never had them.
+     */
+    fun adoptJoinedBill(billRow: BillRow) {
+        _bill.value = _bill.value.copy(
+            id = billRow.id!!,
+            code = billRow.code,
+            restaurantName = billRow.restaurantName,
+            subtotal = billRow.subtotal,
+            serviceChargeRate = billRow.serviceChargePercent / 100,
+            serviceChargeAmount = billRow.serviceChargeAmount,
+            vatRate = billRow.vatPercent / 100,
+            vatAmount = billRow.vatAmount,
+            discount = billRow.discountAmount,
+            total = billRow.totalAmount,
+            stage = BillStage.fromDb(billRow.status),
+            isSplitEvenly = billRow.isSplitEvenly
+        )
+
+        viewModelScope.launch {
+            runCatching {
+                billRepository.findItemsByBillId(billRow.id)
+            }.onSuccess { items ->
+                _bill.value = _bill.value.copy(items = items)
+            }.onFailure {
+                Log.e("BillViewModel", "Failed to load bill items", it)
+            }
+        }
+    }
+
+    /**
+     * Persists the current bill (and its items) to Supabase, creates the
+     * host's own participant row (named from their profile, falling back to
+     * [hostNameFallback]), then records a free scan against the owner's
+     * rolling 30-day quota. Losing the scan-count update doesn't fail the
+     * whole operation - the bill itself is what matters to the user.
+     */
+    fun saveBillAndProceed(ownerId: String, hostNameFallback: String) {
+        _saveState.value = BillSaveState.Saving
+
+        viewModelScope.launch {
+            try {
+                val row = billRepository.saveBill(ownerId, _bill.value)
+                _bill.value = _bill.value.copy(id = row.id!!, code = row.code)
+
+                val profile = runCatching { profileRepository.getProfile(ownerId) }.getOrNull()
+                val hostName = profile?.displayName?.takeIf { it.isNotBlank() } ?: hostNameFallback
+                createHostAndPersist(billId = row.id, userId = ownerId, displayName = hostName)
+
+                runCatching {
+                    profileRepository.incrementFreeScanUsageIfNeeded(ownerId)
+                }
+
+                _saveState.value = BillSaveState.Success
+            } catch (e: Exception) {
+                Log.e("BillViewModel", "Failed to save bill", e)
+                _saveState.value = BillSaveState.Error(e.toUserMessage())
+            }
+        }
+    }
+
+    fun resetSaveState() {
+        _saveState.value = BillSaveState.Idle
+    }
+
+    /**
+     * Fetches the current participant roster for [billId] from Supabase and
+     * merges it into local state - server rows first, then any purely-local
+     * participant not yet reflected there (covers the brief window before a
+     * background insert completes). This is what makes a join visible on
+     * other devices/sessions, since each device otherwise only knows about
+     * participants it added itself.
+     */
+    fun loadParticipants(billId: String) {
+        viewModelScope.launch {
+            runCatching {
+                participantRepository.listByBillId(billId)
+            }.onSuccess { rows ->
+                val fetched = rows.map { it.toParticipant() }
+                    .filterNot { it.id in _pendingRemovalIds.value }
+                val localOnly = _participants.value.filterNot { local ->
+                    fetched.any { it.id == local.id }
+                }
+                _participants.value = fetched + localOnly
+            }.onFailure {
+                Log.e("BillViewModel", "Failed to load participants", it)
+            }
+        }
+    }
+
+    private fun ParticipantRow.toParticipant() = Participant(
+        id = id ?: UUID.randomUUID().toString(),
+        name = name,
+        isHost = role == "host",
+        isReady = isReady,
+        joinMethod = if (userId != null) JoinMethod.SELF_JOINED else JoinMethod.HOST_ADDED
+    )
+
+    /**
+     * Adds [name] to the local participant list immediately (optimistic),
+     * then writes the row through to Supabase in the background. A write
+     * failure is logged but doesn't roll back the local state or surface an
+     * error to the user - this is best-effort, unlike the bill save itself.
+     */
+    fun addParticipantAndPersist(
+        billId: String,
         name: String,
         isHost: Boolean = false,
-        joinMethod: JoinMethod = JoinMethod.HOST_ADDED
+        joinMethod: JoinMethod = JoinMethod.HOST_ADDED,
+        userId: String? = null
     ): Participant? {
         val trimmedName = name.trim()
 
         if (trimmedName.isBlank()) return null
 
+        // Only guard against duplicate names when the host is manually typing
+        // friends in - a self-join must never be silently dropped just
+        // because its name happens to match an existing participant's.
         val alreadyExists =
-            _participants.value.any { participant ->
-                participant.name.equals(
-                    trimmedName,
-                    ignoreCase = true
-                )
-            }
+            joinMethod == JoinMethod.HOST_ADDED &&
+                _participants.value.any { participant ->
+                    participant.name.equals(
+                        trimmedName,
+                        ignoreCase = true
+                    )
+                }
 
         if (alreadyExists) return null
 
@@ -125,17 +298,49 @@ class BillViewModel : ViewModel() {
             _currentParticipantId.value = participant.id
         }
 
+        viewModelScope.launch {
+            runCatching {
+                participantRepository.insertParticipant(
+                    ParticipantRow(
+                        id = participant.id,
+                        billId = billId,
+                        userId = userId,
+                        name = participant.name,
+                        role = "member"
+                    )
+                )
+            }.onFailure {
+                Log.e("BillViewModel", "Failed to persist participant", it)
+            }
+        }
+
         return participant
     }
 
-    fun removeParticipant(participantId: String) {
+    fun removeParticipantAndPersist(participantId: String) {
         _participants.value =
             _participants.value.filterNot { participant ->
                 participant.id == participantId
             }
+
+        _pendingRemovalIds.value = _pendingRemovalIds.value + participantId
+
+        viewModelScope.launch {
+            runCatching {
+                participantRepository.deleteParticipant(participantId)
+            }.onFailure {
+                Log.e("BillViewModel", "Failed to delete participant", it)
+            }
+            _pendingRemovalIds.value = _pendingRemovalIds.value - participantId
+        }
     }
 
-    fun createHost(name: String) {
+    /**
+     * Creates the host's own participant row (optimistic local update, then
+     * best-effort write-through to Supabase - see [addParticipantAndPersist]
+     * for the same failure-handling rationale).
+     */
+    fun createHostAndPersist(billId: String, userId: String, displayName: String) {
 
         if (_participants.value.any {
                 it.isHost
@@ -144,20 +349,38 @@ class BillViewModel : ViewModel() {
         }
 
         val host = Participant(
-            id = System.currentTimeMillis().toString(),
-            name = name,
+            id = UUID.randomUUID().toString(),
+            name = displayName,
             isHost = true,
             joinMethod = JoinMethod.HOST_ADDED
         )
 
         _participants.value += host
         _currentParticipantId.value = host.id
+
+        viewModelScope.launch {
+            runCatching {
+                participantRepository.insertParticipant(
+                    ParticipantRow(
+                        id = host.id,
+                        billId = billId,
+                        userId = userId,
+                        name = host.name,
+                        role = "host"
+                    )
+                )
+            }.onFailure {
+                Log.e("BillViewModel", "Failed to persist host participant", it)
+            }
+        }
     }
 
     /**
      * Whether [actingParticipantId] is allowed to change item selections
      * on behalf of [targetParticipantId]:
      * - Nobody can when the bill is split evenly.
+     * - A participant who has already confirmed their split is locked,
+     *   even from their own further edits or the host's.
      * - Anyone can manage their own selections.
      * - The host can additionally manage participants they added manually
      *   (those can't select for themselves since they never opened the app).
@@ -169,24 +392,107 @@ class BillViewModel : ViewModel() {
 
         if (_bill.value.isSplitEvenly) return false
         if (actingParticipantId == null) return false
+
+        val targetParticipant =
+            _participants.value.find { it.id == targetParticipantId }
+                ?: return false
+
+        if (targetParticipant.isReady) return false
         if (actingParticipantId == targetParticipantId) return true
 
         val actingParticipant =
             _participants.value.find { it.id == actingParticipantId }
                 ?: return false
 
-        val targetParticipant =
-            _participants.value.find { it.id == targetParticipantId }
-                ?: return false
-
         return actingParticipant.isHost &&
                 targetParticipant.joinMethod == JoinMethod.HOST_ADDED
     }
 
-    fun setSplitEvenly(isSplitEvenly: Boolean) {
+    fun setSplitEvenly(isSplitEvenly: Boolean, billId: String) {
         _bill.value = _bill.value.copy(
             isSplitEvenly = isSplitEvenly
         )
+
+        viewModelScope.launch {
+            runCatching {
+                billRepository.updateSplitEvenly(billId, isSplitEvenly)
+            }.onFailure {
+                Log.e("BillViewModel", "Failed to persist split-evenly", it)
+            }
+        }
+    }
+
+    /**
+     * Flips [participantId]'s own ready/confirmed flag - status-only, never
+     * triggers navigation. Used both for "I'm ready to start splitting" in
+     * the waiting room and "I've confirmed my split" on the Split screen.
+     */
+    fun toggleReady(participantId: String, billId: String) {
+        val target = _participants.value.find { it.id == participantId } ?: return
+        val next = !target.isReady
+
+        _participants.value = _participants.value.map {
+            if (it.id == participantId) it.copy(isReady = next) else it
+        }
+
+        viewModelScope.launch {
+            runCatching {
+                participantRepository.setReady(participantId, next)
+            }.onFailure {
+                Log.e("BillViewModel", "Failed to persist ready state", it)
+            }
+        }
+    }
+
+    /**
+     * Host-only action that moves the whole bill (and everyone polling it)
+     * to [stage]. Resets every participant's ready/confirmed flag for the
+     * new stage, both locally and best-effort in Supabase.
+     */
+    fun advanceStage(billId: String, stage: BillStage) {
+        _bill.value = _bill.value.copy(stage = stage)
+        _participants.value = _participants.value.map { it.copy(isReady = false) }
+
+        viewModelScope.launch {
+            runCatching {
+                billRepository.updateStage(billId, stage)
+            }.onFailure {
+                Log.e("BillViewModel", "Failed to persist stage", it)
+            }
+
+            _participants.value.forEach { participant ->
+                launch {
+                    runCatching {
+                        participantRepository.setReady(participant.id, false)
+                    }.onFailure {
+                        Log.e("BillViewModel", "Failed to reset ready for ${participant.id}", it)
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Polls the bill's shared stage/split-evenly flag from Supabase - the
+     * two fields the host can change that every other device needs to react
+     * to live. Deliberately touches only these fields, never items/charges/
+     * restaurantName, which are locally authoritative once loaded.
+     */
+    fun pollBillState(billId: String) {
+        viewModelScope.launch {
+            runCatching {
+                billRepository.findById(billId)
+            }.onSuccess { row ->
+                if (row != null) {
+                    _bill.value = _bill.value.copy(
+                        stage = BillStage.fromDb(row.status),
+                        isSplitEvenly = row.isSplitEvenly
+                    )
+                }
+            }.onFailure {
+                Log.e("BillViewModel", "Failed to poll bill state", it)
+            }
+        }
     }
 
     /** Item price with this item's share of VAT/service charge folded in. */
@@ -250,6 +556,8 @@ class BillViewModel : ViewModel() {
                 it.itemId == itemId
             }
 
+        val added: Boolean
+
         if (existingSelection == null) {
 
             _itemSelections.value += ItemSelection(
@@ -257,12 +565,14 @@ class BillViewModel : ViewModel() {
                 participantIds = setOf(participantId)
             )
 
+            added = true
+
         } else {
 
+            val wasSelected = participantId in existingSelection.participantIds
+
             val updatedParticipants =
-                if (
-                    participantId in existingSelection.participantIds
-                ) {
+                if (wasSelected) {
                     existingSelection.participantIds - participantId
                 } else {
                     existingSelection.participantIds + participantId
@@ -279,6 +589,55 @@ class BillViewModel : ViewModel() {
                         it
                     }
                 }
+
+            added = !wasSelected
+        }
+
+        viewModelScope.launch {
+            runCatching {
+                if (added) {
+                    itemClaimRepository.insertClaim(
+                        ItemClaimRow(itemId = itemId, participantId = participantId)
+                    )
+                } else {
+                    itemClaimRepository.deleteClaim(itemId, participantId)
+                }
+            }.onFailure {
+                Log.e("BillViewModel", "Failed to persist item claim", it)
+            }
+        }
+    }
+
+    /**
+     * Fetches item claims for the current bill's items and replaces
+     * [itemSelections] wholesale - this is what makes item choices visible
+     * across devices. A poll landing just before this device's own optimistic
+     * [toggleItemSelection] update can briefly revert it until the next tick;
+     * acceptable at the ~3s polling cadence used everywhere else in this flow.
+     */
+    fun loadItemClaims(billId: String) {
+        if (_bill.value.id != billId) return
+
+        val itemIds = _bill.value.items.map { it.id }
+        if (itemIds.isEmpty()) return
+
+        viewModelScope.launch {
+            runCatching {
+                itemClaimRepository.listClaimsForItems(itemIds)
+            }.onSuccess { rows ->
+                val grouped = rows.groupBy { it.itemId }
+                    .mapValues { (_, claims) -> claims.map { it.participantId }.toSet() }
+
+                val fetched = itemIds.map { id ->
+                    ItemSelection(itemId = id, participantIds = grouped[id] ?: emptySet())
+                }
+
+                if (fetched != _itemSelections.value) {
+                    _itemSelections.value = fetched
+                }
+            }.onFailure {
+                Log.e("BillViewModel", "Failed to load item claims", it)
+            }
         }
     }
 
@@ -469,14 +828,5 @@ class BillViewModel : ViewModel() {
                     total
             )
         }
-    }
-
-
-    fun isValidGroupCode(code: String): Boolean {
-
-        return _bill.value.code.equals(
-            code.trim(),
-            ignoreCase = true
-        )
     }
 }

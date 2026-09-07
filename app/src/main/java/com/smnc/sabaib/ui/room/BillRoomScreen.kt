@@ -30,6 +30,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -45,9 +46,11 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.smnc.sabaib.R
+import com.smnc.sabaib.model.BillStage
 import com.smnc.sabaib.model.Participant
 import com.smnc.sabaib.ui.theme.SabaiBeakOrange
 import com.smnc.sabaib.ui.theme.SabaiBlack
+import com.smnc.sabaib.ui.theme.SabaiGray
 import com.smnc.sabaib.ui.theme.SabaiLightGray
 import com.smnc.sabaib.ui.theme.SabaiNavy
 import com.smnc.sabaib.ui.theme.SabaiNavyLight
@@ -56,6 +59,7 @@ import com.smnc.sabaib.ui.theme.SabaiWhite
 import com.smnc.sabaib.ui.theme.SabaiYellow
 import com.smnc.sabaib.util.generateQrCode
 import com.smnc.sabaib.viewmodel.BillViewModel
+import kotlinx.coroutines.delay
 
 private val avatarColors = listOf(SabaiYellow, SabaiBeakOrange, SabaiNavy, SabaiNavyLight)
 
@@ -68,6 +72,7 @@ fun BillRoomScreen(
 ) {
     val bill by billViewModel.bill
     val participants by billViewModel.participants
+    val currentParticipantId by billViewModel.currentParticipantId
     val inviteUrl = "https://sabaib.app/join/${bill.code}"
     val qrBitmap = remember(inviteUrl) {
         generateQrCode(inviteUrl)
@@ -75,6 +80,17 @@ fun BillRoomScreen(
     val context = LocalContext.current
 
     var friendName by remember { mutableStateOf("") }
+
+    LaunchedEffect(bill.id) {
+        while (true) {
+            billViewModel.loadParticipants(bill.id)
+            delay(3000)
+        }
+    }
+
+    LaunchedEffect(bill.stage) {
+        if (bill.stage == BillStage.SPLITTING) onContinue()
+    }
 
     Scaffold(
         topBar = {
@@ -239,7 +255,7 @@ fun BillRoomScreen(
                         onClick = {
                             val trimmed = friendName.trim()
                             if (trimmed.isNotEmpty()) {
-                                billViewModel.addParticipant(name = trimmed)
+                                billViewModel.addParticipantAndPersist(billId = bill.id, name = trimmed)
                                 friendName = ""
                             }
                         },
@@ -266,9 +282,10 @@ fun BillRoomScreen(
                         participants.forEachIndexed { index, participant ->
                             ParticipantChip(
                                 participant = participant,
+                                isSelf = participant.id == currentParticipantId,
                                 color = avatarColors[index % avatarColors.size],
                                 onRemove = {
-                                    billViewModel.removeParticipant(participant.id)
+                                    billViewModel.removeParticipantAndPersist(participant.id)
                                 }
                             )
                         }
@@ -279,7 +296,7 @@ fun BillRoomScreen(
             }
 
             Button(
-                onClick = onContinue,
+                onClick = { billViewModel.advanceStage(bill.id, BillStage.SPLITTING) },
                 colors = ButtonDefaults.buttonColors(
                     containerColor = SabaiYellow,
                     contentColor = SabaiBlack
@@ -300,6 +317,7 @@ fun BillRoomScreen(
 @Composable
 private fun ParticipantChip(
     participant: Participant,
+    isSelf: Boolean,
     color: Color,
     onRemove: () -> Unit
 ) {
@@ -326,8 +344,20 @@ private fun ParticipantChip(
         Spacer(modifier = Modifier.width(8.dp))
 
         Text(
-            text = if (participant.isHost) "You" else participant.name
+            text = participant.name,
+            color = if (isSelf) SabaiYellow else SabaiBlack,
+            fontWeight = FontWeight.SemiBold
         )
+
+        if (participant.isHost) {
+            Spacer(modifier = Modifier.width(6.dp))
+
+            Text(
+                text = "Host",
+                color = SabaiGray,
+                style = MaterialTheme.typography.labelSmall
+            )
+        }
 
         if (!participant.isHost) {
             IconButton(

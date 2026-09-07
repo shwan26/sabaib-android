@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -33,9 +32,11 @@ import com.smnc.sabaib.ui.participants.ParticipantsScreen
 import com.smnc.sabaib.ui.payment.PaymentScreen
 import com.smnc.sabaib.ui.payment.UserPaymentScreen
 import com.smnc.sabaib.ui.profile.ProfileScreen
+import com.smnc.sabaib.ui.profile.ProfileViewModel
 import com.smnc.sabaib.ui.review.ReviewScreen
 import com.smnc.sabaib.ui.room.BillRoomScreen
 import com.smnc.sabaib.ui.scan.ScanScreen
+import com.smnc.sabaib.ui.settings.SettingsScreen
 import com.smnc.sabaib.ui.split.SplitScreen
 import com.smnc.sabaib.ui.theme.SabaiOffWhite
 import com.smnc.sabaib.util.OnboardingPrefs
@@ -48,6 +49,7 @@ fun AppNavHost() {
 
     val navController = rememberNavController()
     val billViewModel: BillViewModel = viewModel()
+    val profileViewModel: ProfileViewModel = viewModel()
     val authRepository = remember { AuthRepository() }
     val context = LocalContext.current
     val startDestination = remember {
@@ -106,6 +108,7 @@ fun AppNavHost() {
         composable(Screen.Home.route) {
             HomeScreen(
                 onScanClick = {
+                    billViewModel.startNewBill()
                     if (authRepository.isLoggedIn()) {
                         navController.navigate(Screen.Scan.route)
                     } else {
@@ -113,7 +116,8 @@ fun AppNavHost() {
                     }
                 },
                 onJoinBill = {
-                    navController.navigate(Screen.JoinBillWithCode.route)
+                    billViewModel.startNewBill()
+                    navController.navigate("join_bill")
                 }
             )
         }
@@ -125,10 +129,23 @@ fun AppNavHost() {
         composable(Screen.Profile.route) {
             ProfileScreen(
                 authRepository = authRepository,
+                profileViewModel = profileViewModel,
+                onSettingsClick = {
+                    navController.navigate(Screen.Settings.route)
+                },
                 onLoggedOut = {
                     navController.navigate(Screen.Landing.route) {
                         popUpTo(0) { inclusive = true }
                     }
+                }
+            )
+        }
+
+        composable(Screen.Settings.route) {
+            SettingsScreen(
+                profileViewModel = profileViewModel,
+                onBack = {
+                    navController.popBackStack()
                 }
             )
         }
@@ -142,6 +159,7 @@ fun AppNavHost() {
                 onAuthSuccess = {
                     val target = when (redirect) {
                         "scan" -> Screen.Scan.route
+                        "join_bill" -> "join_bill"
                         else -> Screen.Home.route
                     }
                     navController.navigate(target) {
@@ -186,6 +204,7 @@ fun AppNavHost() {
         composable(Screen.Review.route) {
             ReviewScreen(
                 billViewModel = billViewModel,
+                authRepository = authRepository,
                 onContinue = {
                     navController.navigate(Screen.BillRoom.route)
                 },
@@ -207,7 +226,10 @@ fun AppNavHost() {
             )
         }
 
-        composable(Screen.JoinBillWithCode.route) {
+        composable(
+            route = Screen.JoinBillWithCode.route,
+            arguments = listOf(navArgument("code") { type = NavType.StringType; defaultValue = "" })
+        ) {
                 backStackEntry ->
 
             val code =
@@ -215,18 +237,27 @@ fun AppNavHost() {
                     ?.getString("code")
                     .orEmpty()
 
-            JoinBillScreen(
-                billViewModel = billViewModel,
-                initialCode = code,
-                onJoined = {
-                    navController.navigate(
-                        Screen.Participants.route
-                    )
-                },
-                onBack = {
-                    navController.popBackStack()
+            if (authRepository.isLoggedIn()) {
+                JoinBillScreen(
+                    billViewModel = billViewModel,
+                    authRepository = authRepository,
+                    initialCode = code,
+                    onJoined = {
+                        navController.navigate(
+                            Screen.Participants.route
+                        )
+                    },
+                    onBack = {
+                        navController.popBackStack()
+                    }
+                )
+            } else {
+                LaunchedEffect(Unit) {
+                    navController.navigate("login/join_bill") {
+                        popUpTo("join_bill") { inclusive = true }
+                    }
                 }
-            )
+            }
         }
 
         composable(Screen.Participants.route) {
