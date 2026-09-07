@@ -47,6 +47,7 @@ fun PaymentScreen(
     val bill by billViewModel.bill
     val participants by billViewModel.participants
     val paidStatus by billViewModel.paidStatus
+    val currentParticipantId by billViewModel.currentParticipantId
 
     val totals = billViewModel.calculateParticipantTotals()
 
@@ -117,11 +118,8 @@ fun PaymentScreen(
                         else -> "Unpaid"
                     }
 
-                    val displayName = if (participant?.isHost == true) {
-                        "You"
-                    } else {
-                        personTotal.participantName
-                    }
+                    val displayName = personTotal.participantName
+                    val isSelf = participant?.id == currentParticipantId
 
                     Row(
                         modifier = Modifier
@@ -136,6 +134,7 @@ fun PaymentScreen(
                         Column {
                             Text(
                                 text = displayName,
+                                color = if (isSelf) SabaiYellow else SabaiBlack,
                                 fontWeight = FontWeight.SemiBold,
                                 style = MaterialTheme.typography.bodyLarge
                             )

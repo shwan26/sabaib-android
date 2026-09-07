@@ -135,6 +135,8 @@ fun JoinBillScreen(
                     ?: authRepository.currentUserEmail()?.substringBefore("@")
                     ?: "Guest"
 
+                billViewModel.adoptJoinedBill(billRow)
+
                 billViewModel.addParticipantAndPersist(
                     billId = billRow.id,
                     name = name,

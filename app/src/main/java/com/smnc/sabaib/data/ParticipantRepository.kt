@@ -19,4 +19,12 @@ class ParticipantRepository {
             filter { eq("id", id) }
         }
     }
+
+    suspend fun setReady(participantId: String, isReady: Boolean) {
+        postgrest["participants"].update({
+            ParticipantRow::isReady setTo isReady
+        }) {
+            filter { eq("id", participantId) }
+        }
+    }
 }

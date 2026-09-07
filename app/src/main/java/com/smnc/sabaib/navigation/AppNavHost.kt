@@ -108,6 +108,7 @@ fun AppNavHost() {
         composable(Screen.Home.route) {
             HomeScreen(
                 onScanClick = {
+                    billViewModel.startNewBill()
                     if (authRepository.isLoggedIn()) {
                         navController.navigate(Screen.Scan.route)
                     } else {
@@ -115,6 +116,7 @@ fun AppNavHost() {
                     }
                 },
                 onJoinBill = {
+                    billViewModel.startNewBill()
                     navController.navigate("join_bill")
                 }
             )

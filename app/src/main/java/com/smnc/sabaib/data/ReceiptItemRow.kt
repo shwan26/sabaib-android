@@ -5,6 +5,7 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class ReceiptItemRow(
+    val id: String? = null,
     @SerialName("bill_id") val billId: String,
     @SerialName("original_name") val originalName: String,
     @SerialName("translated_name") val translatedName: String? = null,

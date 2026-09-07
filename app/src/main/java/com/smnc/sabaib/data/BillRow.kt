@@ -22,6 +22,10 @@ data class BillRow(
     // this field and let Postgres fall back to its own column default
     // ('draft'), violating bills_status_check.
     val status: String,
+    // No default, same rationale as [status] above - every insert should
+    // state this explicitly rather than relying on encodeDefaults=false to
+    // omit it and fall back to the column default.
+    @SerialName("is_split_evenly") val isSplitEvenly: Boolean,
     @SerialName("delete_after")
     @Serializable(with = InstantColumnSerializer::class)
     val deleteAfter: Instant? = null
