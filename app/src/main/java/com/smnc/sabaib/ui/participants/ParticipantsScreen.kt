@@ -39,6 +39,7 @@ fun ParticipantsScreen(
         while (true) {
             billViewModel.loadParticipants(bill.id)
             billViewModel.pollBillState(bill.id)
+            billViewModel.loadBillItemsIfMissing(bill.id)
             delay(3000)
         }
     }

@@ -12,6 +12,7 @@ import com.smnc.sabaib.data.ItemClaimRow
 import com.smnc.sabaib.data.ParticipantRepository
 import com.smnc.sabaib.data.ParticipantRow
 import com.smnc.sabaib.data.ProfileRepository
+import com.smnc.sabaib.data.PromptPayQrRepository
 import com.smnc.sabaib.data.toUserMessage
 import com.smnc.sabaib.domain.charges.ChargeCalculator
 import com.smnc.sabaib.model.Bill
@@ -36,7 +37,8 @@ class BillViewModel(
     private val billRepository: BillRepository = BillRepository(),
     private val profileRepository: ProfileRepository = ProfileRepository(),
     private val participantRepository: ParticipantRepository = ParticipantRepository(),
-    private val itemClaimRepository: ItemClaimRepository = ItemClaimRepository()
+    private val itemClaimRepository: ItemClaimRepository = ItemClaimRepository(),
+    private val promptPayQrRepository: PromptPayQrRepository = PromptPayQrRepository()
 ) : ViewModel() {
 
     private val _bill = mutableStateOf(
@@ -76,11 +78,11 @@ class BillViewModel(
     val currentParticipantId: State<String?> =
         _currentParticipantId
 
-    private val _promptPayNumber =
-        mutableStateOf<String?>(null)
+    private val _isUploadingPromptPayQr =
+        mutableStateOf(false)
 
-    val promptPayNumber: State<String?> =
-        _promptPayNumber
+    val isUploadingPromptPayQr: State<Boolean> =
+        _isUploadingPromptPayQr
 
     private val _paidStatus =
         mutableStateOf<Map<String, Boolean>>(emptyMap())
@@ -111,14 +113,51 @@ class BillViewModel(
         _participants.value = emptyList()
         _itemSelections.value = emptyList()
         _currentParticipantId.value = null
-        _promptPayNumber.value = null
+        _isUploadingPromptPayQr.value = false
         _paidStatus.value = emptyMap()
         _pendingRemovalIds.value = emptySet()
         _saveState.value = BillSaveState.Idle
     }
 
-    fun updatePromptPayNumber(number: String) {
-        _promptPayNumber.value = number
+    /**
+     * Uploads [bytes] as the host's PromptPay QR image to Supabase storage,
+     * then persists its public URL on the bill row so every device polling
+     * the bill (guests included) picks it up - see [pollBillState].
+     */
+    fun uploadPromptPayQr(billId: String, bytes: ByteArray, contentType: String?) {
+        _isUploadingPromptPayQr.value = true
+
+        viewModelScope.launch {
+            runCatching {
+                val path = "$billId/qr"
+                promptPayQrRepository.upload(path, bytes, contentType)
+                promptPayQrRepository.publicUrl(path)
+            }.onSuccess { url ->
+                // Cache-bust so a re-uploaded QR at the same path doesn't
+                // keep showing a stale cached image on other devices.
+                setPromptPayQrUrl(billId, "$url?t=${System.currentTimeMillis()}")
+            }.onFailure {
+                Log.e("BillViewModel", "Failed to upload promptpay QR", it)
+            }
+
+            _isUploadingPromptPayQr.value = false
+        }
+    }
+
+    fun removePromptPayQr(billId: String) {
+        setPromptPayQrUrl(billId, null)
+    }
+
+    private fun setPromptPayQrUrl(billId: String, url: String?) {
+        _bill.value = _bill.value.copy(promptPayQrUrl = url)
+
+        viewModelScope.launch {
+            runCatching {
+                billRepository.updatePromptPayQrUrl(billId, url)
+            }.onFailure {
+                Log.e("BillViewModel", "Failed to persist promptpay QR url", it)
+            }
+        }
     }
 
     fun markParticipantPaid(participantId: String) {
@@ -170,14 +209,36 @@ class BillViewModel(
             discount = billRow.discountAmount,
             total = billRow.totalAmount,
             stage = BillStage.fromDb(billRow.status),
-            isSplitEvenly = billRow.isSplitEvenly
+            isSplitEvenly = billRow.isSplitEvenly,
+            splitDecided = billRow.splitDecided,
+            promptPayQrUrl = billRow.promptPayQrUrl
         )
+
+        loadBillItemsIfMissing(billRow.id)
+    }
+
+    /**
+     * Fetches this bill's receipt items from Supabase if [Bill.items] is
+     * still empty - the case for a guest whose [Bill] was adopted via
+     * [adoptJoinedBill] rather than scanned locally. Safe to call
+     * repeatedly (e.g. from a poll loop): a host who already has items
+     * loaded locally, or a guest whose earlier fetch already succeeded,
+     * is a no-op. This also means a guest whose one-shot fetch in
+     * [adoptJoinedBill] raced the host's insert, or hit a transient
+     * network error, keeps retrying until the items show up instead of
+     * being stuck with a permanently empty Split screen.
+     */
+    fun loadBillItemsIfMissing(billId: String) {
+        if (_bill.value.id != billId) return
+        if (_bill.value.items.isNotEmpty()) return
 
         viewModelScope.launch {
             runCatching {
-                billRepository.findItemsByBillId(billRow.id)
+                billRepository.findItemsByBillId(billId)
             }.onSuccess { items ->
-                _bill.value = _bill.value.copy(items = items)
+                if (items.isNotEmpty()) {
+                    _bill.value = _bill.value.copy(items = items)
+                }
             }.onFailure {
                 Log.e("BillViewModel", "Failed to load bill items", it)
             }
@@ -378,7 +439,9 @@ class BillViewModel(
     /**
      * Whether [actingParticipantId] is allowed to change item selections
      * on behalf of [targetParticipantId]:
-     * - Nobody can when the bill is split evenly.
+     * - Nobody can before the host has made the evenly-vs-by-item call, or
+     *   once they've chosen to split evenly - see [chooseSplitEvenly]/
+     *   [chooseSplitByItems].
      * - A participant who has already confirmed their split is locked,
      *   even from their own further edits or the host's.
      * - Anyone can manage their own selections.
@@ -390,6 +453,7 @@ class BillViewModel(
         targetParticipantId: String
     ): Boolean {
 
+        if (!_bill.value.splitDecided) return false
         if (_bill.value.isSplitEvenly) return false
         if (actingParticipantId == null) return false
 
@@ -408,18 +472,40 @@ class BillViewModel(
                 targetParticipant.joinMethod == JoinMethod.HOST_ADDED
     }
 
-    fun setSplitEvenly(isSplitEvenly: Boolean, billId: String) {
+    /**
+     * Host-only: commits the one-time evenly-vs-by-item call for the bill,
+     * unlocking [canControlParticipant]/item taps for everyone when the
+     * answer is "by item". There's no path back to the undecided state -
+     * see [Bill.splitDecided].
+     */
+    private fun setSplitDecision(billId: String, isSplitEvenly: Boolean) {
         _bill.value = _bill.value.copy(
-            isSplitEvenly = isSplitEvenly
+            isSplitEvenly = isSplitEvenly,
+            splitDecided = true
         )
 
         viewModelScope.launch {
             runCatching {
-                billRepository.updateSplitEvenly(billId, isSplitEvenly)
+                billRepository.setSplitDecision(billId, isSplitEvenly)
             }.onFailure {
-                Log.e("BillViewModel", "Failed to persist split-evenly", it)
+                Log.e("BillViewModel", "Failed to persist split decision", it)
             }
         }
+    }
+
+    /**
+     * Host chose to split the bill evenly - there's nothing left to divide
+     * up per-item, so this jumps straight to the payment stage for everyone
+     * polling the bill.
+     */
+    fun chooseSplitEvenly(billId: String) {
+        setSplitDecision(billId, isSplitEvenly = true)
+        advanceStage(billId, BillStage.PAYMENT)
+    }
+
+    /** Host chose to split by item - unlocks item tapping for everyone. */
+    fun chooseSplitByItems(billId: String) {
+        setSplitDecision(billId, isSplitEvenly = false)
     }
 
     /**
@@ -473,9 +559,9 @@ class BillViewModel(
     }
 
     /**
-     * Polls the bill's shared stage/split-evenly flag from Supabase - the
-     * two fields the host can change that every other device needs to react
-     * to live. Deliberately touches only these fields, never items/charges/
+     * Polls the bill's shared stage/split-evenly/PromptPay-QR fields from
+     * Supabase - the fields the host can change that every other device
+     * needs to react to live. Deliberately excludes items/charges/
      * restaurantName, which are locally authoritative once loaded.
      */
     fun pollBillState(billId: String) {
@@ -486,7 +572,9 @@ class BillViewModel(
                 if (row != null) {
                     _bill.value = _bill.value.copy(
                         stage = BillStage.fromDb(row.status),
-                        isSplitEvenly = row.isSplitEvenly
+                        isSplitEvenly = row.isSplitEvenly,
+                        splitDecided = row.splitDecided,
+                        promptPayQrUrl = row.promptPayQrUrl
                     )
                 }
             }.onFailure {
@@ -689,6 +777,7 @@ class BillViewModel(
 
     fun hasUnclaimedItems(): Boolean {
 
+        if (!_bill.value.splitDecided) return false
         if (_bill.value.isSplitEvenly) return false
 
         return _bill.value.items.any {

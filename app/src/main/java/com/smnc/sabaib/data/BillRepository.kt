@@ -60,9 +60,19 @@ class BillRepository {
         }
     }
 
-    suspend fun updateSplitEvenly(billId: String, isSplitEvenly: Boolean) {
+    /** Records the host's one-time evenly-vs-by-item call for the bill. */
+    suspend fun setSplitDecision(billId: String, isSplitEvenly: Boolean) {
         postgrest["bills"].update({
             BillRow::isSplitEvenly setTo isSplitEvenly
+            BillRow::splitDecided setTo true
+        }) {
+            filter { eq("id", billId) }
+        }
+    }
+
+    suspend fun updatePromptPayQrUrl(billId: String, url: String?) {
+        postgrest["bills"].update({
+            BillRow::promptPayQrUrl setTo url
         }) {
             filter { eq("id", billId) }
         }

@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -272,17 +273,40 @@ fun AppNavHost() {
         }
 
         composable(Screen.Payment.route) {
-            PaymentScreen(
-                billViewModel = billViewModel,
-                onParticipantClick = { participantId ->
-                    navController.navigate("user_payment/$participantId")
-                },
-                onBackToHome = {
-                    navController.navigate(Screen.Home.route) {
-                        popUpTo(Screen.Home.route) { inclusive = false }
-                    }
+            // Only the host sees everyone's payment status/list - a
+            // participant only ever sees their own amount and the host's
+            // QR, never anyone else's total.
+            val participants by billViewModel.participants
+            val currentParticipantId by billViewModel.currentParticipantId
+            val viewerIsHost = participants.find { it.id == currentParticipantId }?.isHost == true
+
+            val backToHome = {
+                navController.navigate(Screen.Home.route) {
+                    popUpTo(Screen.Home.route) { inclusive = false }
                 }
-            )
+            }
+
+            if (viewerIsHost) {
+                PaymentScreen(
+                    billViewModel = billViewModel,
+                    onParticipantClick = { participantId ->
+                        navController.navigate("user_payment/$participantId")
+                    },
+                    onBackToHome = backToHome
+                )
+            } else {
+                val selfId = currentParticipantId ?: participants.firstOrNull()?.id.orEmpty()
+
+                UserPaymentScreen(
+                    billViewModel = billViewModel,
+                    participantId = selfId,
+                    readOnly = true,
+                    onBack = { navController.popBackStack() },
+                    onDone = {},
+                    onUndo = {},
+                    onBackToHome = backToHome
+                )
+            }
         }
 
         composable(
