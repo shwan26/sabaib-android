@@ -43,6 +43,18 @@ android {
             "SUPABASE_KEY",
             "\"${localProperties.getProperty("SUPABASE_KEY")}\""
         )
+
+        buildConfigField(
+            "String",
+            "GEMINI_API_KEY",
+            "\"${localProperties.getProperty("GEMINI_API_KEY", "")}\""
+        )
+
+        buildConfigField(
+            "String",
+            "REVENUECAT_API_KEY",
+            "\"${localProperties.getProperty("REVENUECAT_API_KEY", "")}\""
+        )
     }
 
     buildTypes {
@@ -76,6 +88,7 @@ dependencies {
 
     implementation(libs.ktor.client.android)
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.revenuecat.purchases)
 
     // GIF playback for Compose (animated penguin avatar)
     implementation(libs.coil.compose)

@@ -28,6 +28,7 @@ import com.smnc.sabaib.ui.theme.SabaiLightGray
 import com.smnc.sabaib.ui.theme.SabaiNavy
 import com.smnc.sabaib.ui.theme.SabaiNavyLight
 import com.smnc.sabaib.ui.theme.SabaiOffWhite
+import com.smnc.sabaib.ui.theme.SabaiSuccess
 import com.smnc.sabaib.ui.theme.SabaiWhite
 import com.smnc.sabaib.ui.theme.SabaiYellow
 import com.smnc.sabaib.viewmodel.BillViewModel
@@ -160,6 +161,7 @@ fun SplitScreen(
                                 amount = billViewModel.calculateParticipantSubtotal(participant.id),
                                 isActive = activeParticipantId == participant.id,
                                 isEnabled = canAct,
+                                isConfirmed = participant.isReady,
                                 onClick = {
                                     if (canAct) {
                                         activeParticipantId = participant.id
@@ -299,6 +301,7 @@ private fun ParticipantSplitChip(
     amount: Double,
     isActive: Boolean,
     isEnabled: Boolean,
+    isConfirmed: Boolean,
     onClick: () -> Unit
 ) {
     Row(
@@ -356,6 +359,24 @@ private fun ParticipantSplitChip(
             style = MaterialTheme.typography.bodyMedium,
             color = SabaiGray
         )
+
+        if (isConfirmed) {
+            Spacer(modifier = Modifier.width(6.dp))
+
+            Box(
+                modifier = Modifier
+                    .size(18.dp)
+                    .background(SabaiSuccess, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "✓",
+                    color = SabaiWhite,
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.labelSmall
+                )
+            }
+        }
     }
 }
 

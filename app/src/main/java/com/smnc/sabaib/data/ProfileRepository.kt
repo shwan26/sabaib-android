@@ -21,6 +21,14 @@ class ProfileRepository {
         }
     }
 
+    suspend fun updatePlan(userId: String, plan: String) {
+        postgrest["profiles"].update({
+            Profile::plan setTo plan
+        }) {
+            filter { eq("id", userId) }
+        }
+    }
+
     /**
      * Records a free scan against [userId]'s rolling 30-day quota.
      * No-ops for premium users, who aren't scan-limited.

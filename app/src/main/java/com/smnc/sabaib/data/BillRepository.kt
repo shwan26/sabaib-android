@@ -13,11 +13,31 @@ import java.util.UUID
 private const val UNIQUE_VIOLATION = "23505"
 private const val BILL_RETENTION_DAYS = 7L
 
+/**
+ * Result of [BillRepository.saveBill]: the persisted bill row plus its
+ * receipt items as Postgres actually stored them (real `id`s included).
+ * Callers must adopt [items] rather than reusing the [Bill.items] they
+ * passed in - see [BillRepository.saveBill] for why.
+ */
+data class SavedBill(val row: BillRow, val items: List<ReceiptItem>)
+
 class BillRepository {
 
     private val postgrest = SupabaseProvider.client.postgrest
 
-    suspend fun saveBill(ownerId: String, bill: Bill): BillRow {
+    /**
+     * Persists [bill] and its items, returning the items as Postgres actually
+     * stored them - each `ReceiptItem.id` passed in is only ever a local
+     * placeholder (random UUID from OCR parsing, or a timestamp for a
+     * manually-added row - see [com.smnc.sabaib.domain.scan.ReceiptParser]/
+     * [com.smnc.sabaib.ui.review.ReviewScreen]), never the real
+     * `receipt_items.id` Postgres assigns on insert. Callers (namely
+     * [com.smnc.sabaib.viewmodel.BillViewModel.saveBillAndProceed]) must
+     * replace their local items with [SavedBill.items] instead of keeping the
+     * ones they passed in, or later item-claim calls will reference ids that
+     * were never actually written to `receipt_items`.
+     */
+    suspend fun saveBill(ownerId: String, bill: Bill): SavedBill {
 
         val billRow = try {
             insertBill(ownerId, bill, bill.code)
@@ -29,12 +49,16 @@ class BillRepository {
             }
         }
 
-        if (bill.items.isNotEmpty()) {
+        val savedItems = if (bill.items.isNotEmpty()) {
             val itemRows = bill.items.map { it.toReceiptItemRow(billRow.id!!) }
-            postgrest["receipt_items"].insert(itemRows)
+            postgrest["receipt_items"].insert(itemRows) { select() }
+                .decodeList<ReceiptItemRow>()
+                .map { it.toReceiptItem() }
+        } else {
+            emptyList()
         }
 
-        return billRow
+        return SavedBill(billRow, savedItems)
     }
 
     suspend fun findByCode(code: String): BillRow? =
