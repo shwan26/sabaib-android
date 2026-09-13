@@ -245,11 +245,9 @@ class BillViewModel(
     }
 
     /**
-     * Persists the current bill (and its items) to Supabase, creates the
+     * Persists the current bill (and its items) to Supabase, then creates the
      * host's own participant row (named from their profile, falling back to
-     * [hostNameFallback]), then records a free scan against the owner's
-     * rolling 30-day quota. Losing the scan-count update doesn't fail the
-     * whole operation - the bill itself is what matters to the user.
+     * [hostNameFallback]).
      */
     fun saveBillAndProceed(ownerId: String, hostNameFallback: String) {
         _saveState.value = BillSaveState.Saving
@@ -264,10 +262,6 @@ class BillViewModel(
                 val hostName = profile?.displayName?.takeIf { it.isNotBlank() } ?: hostNameFallback
                 createHostAndPersist(billId = row.id, userId = ownerId, displayName = hostName)
 
-                runCatching {
-                    profileRepository.incrementFreeScanUsageIfNeeded(ownerId)
-                }
-
                 _saveState.value = BillSaveState.Success
             } catch (e: Exception) {
                 Log.e("BillViewModel", "Failed to save bill", e)
@@ -275,6 +269,13 @@ class BillViewModel(
             }
         }
     }
+
+    /**
+     * Checks and records a scan against [userId]'s free-plan quota before a
+     * confirmed receipt photo is sent to OCR. Always Allowed for premium.
+     */
+    suspend fun consumeFreeScan(userId: String): ProfileRepository.ScanQuotaResult =
+        profileRepository.consumeFreeScan(userId)
 
     fun resetSaveState() {
         _saveState.value = BillSaveState.Idle

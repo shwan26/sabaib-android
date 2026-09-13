@@ -245,8 +245,12 @@ fun AppNavHost() {
             if (authRepository.isLoggedIn()) {
                 ScanScreen(
                     billViewModel = billViewModel,
+                    authRepository = authRepository,
                     onContinue = {
                         navController.navigate(Screen.Review.route)
+                    },
+                    onLimitReached = {
+                        navController.navigate(Screen.Paywall.route)
                     },
                     onBack = {
                         navController.popBackStack()

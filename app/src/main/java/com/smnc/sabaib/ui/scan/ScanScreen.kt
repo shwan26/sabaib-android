@@ -27,6 +27,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.smnc.sabaib.R
+import com.smnc.sabaib.data.AuthRepository
+import com.smnc.sabaib.data.ProfileRepository
 import com.smnc.sabaib.domain.scan.GeminiReceiptScanner
 import com.smnc.sabaib.domain.scan.ReceiptParser
 import com.smnc.sabaib.ui.theme.SabaiBlack
@@ -40,7 +42,7 @@ import com.smnc.sabaib.util.recognizeTextFrom
 import kotlinx.coroutines.launch
 
 private enum class ScanState {
-    Idle, Preview, Processing, Error
+    Idle, ImageReady, Preview, Processing, Error
 }
 
 private const val TAG = "ScanScreen"
@@ -49,7 +51,9 @@ private const val TAG = "ScanScreen"
 @Composable
 fun ScanScreen(
     billViewModel: BillViewModel,
+    authRepository: AuthRepository,
     onContinue: () -> Unit,
+    onLimitReached: () -> Unit,
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -60,21 +64,27 @@ fun ScanScreen(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
 
-    fun processImage(uri: Uri) {
+    fun loadImage(uri: Uri) {
+        coroutineScope.launch {
+            val bitmap = loadRotatedBitmap(context, uri)
+
+            if (bitmap == null) {
+                errorMessage = "Couldn't read that photo. Please try again."
+                scanState = ScanState.Error
+                return@launch
+            }
+
+            previewBitmap = bitmap
+            errorMessage = null
+            scanState = ScanState.ImageReady
+        }
+    }
+
+    fun runScan(bitmap: Bitmap) {
         scanState = ScanState.Processing
 
         coroutineScope.launch {
             try {
-                val bitmap = loadRotatedBitmap(context, uri)
-
-                if (bitmap == null) {
-                    errorMessage = "Couldn't read that photo. Please try again."
-                    scanState = ScanState.Error
-                    return@launch
-                }
-
-                previewBitmap = bitmap
-
                 val parsedItems = try {
                     GeminiReceiptScanner.scan(bitmap).ifEmpty {
                         Log.w(TAG, "Gemini returned no items, falling back to ML Kit + regex")
@@ -103,12 +113,33 @@ fun ScanScreen(
         }
     }
 
+    fun confirmImage(bitmap: Bitmap) {
+        val userId = authRepository.currentUserId()
+        if (userId == null) {
+            errorMessage = "Please sign in again to continue."
+            scanState = ScanState.Error
+            return
+        }
+
+        scanState = ScanState.Processing
+
+        coroutineScope.launch {
+            when (billViewModel.consumeFreeScan(userId)) {
+                ProfileRepository.ScanQuotaResult.LimitReached -> {
+                    scanState = ScanState.ImageReady
+                    onLimitReached()
+                }
+                ProfileRepository.ScanQuotaResult.Allowed -> runScan(bitmap)
+            }
+        }
+    }
+
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
     ) { success ->
         val uri = pendingCameraUri
         if (success && uri != null) {
-            processImage(uri)
+            loadImage(uri)
         } else {
             scanState = ScanState.Idle
         }
@@ -118,7 +149,7 @@ fun ScanScreen(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
         if (uri != null) {
-            processImage(uri)
+            loadImage(uri)
         }
     }
 
@@ -274,6 +305,64 @@ fun ScanScreen(
                             color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.bodySmall
                         )
+                    }
+                }
+
+                ScanState.ImageReady -> {
+
+                    previewBitmap?.let { bitmap ->
+                        Image(
+                            bitmap = bitmap.asImageBitmap(),
+                            contentDescription = "Captured receipt photo",
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 320.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text(
+                        text = "Looks good? We'll read the items off this photo.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+
+                    errorMessage?.let { message ->
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = message,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    Button(
+                        onClick = {
+                            previewBitmap?.let { bitmap -> confirmImage(bitmap) }
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = SabaiYellow,
+                            contentColor = SabaiBlack
+                        ),
+                        shape = RoundedCornerShape(20.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(56.dp)
+                    ) {
+                        Text("Continue with this image", fontWeight = FontWeight.Bold)
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    OutlinedButton(
+                        onClick = { retake() },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Retake Photo")
                     }
                 }
 
