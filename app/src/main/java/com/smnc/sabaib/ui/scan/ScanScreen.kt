@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
@@ -26,6 +27,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.smnc.sabaib.R
+import com.smnc.sabaib.domain.scan.GeminiReceiptScanner
 import com.smnc.sabaib.domain.scan.ReceiptParser
 import com.smnc.sabaib.ui.theme.SabaiBlack
 import com.smnc.sabaib.ui.theme.SabaiLightGray
@@ -40,6 +42,8 @@ import kotlinx.coroutines.launch
 private enum class ScanState {
     Idle, Preview, Processing, Error
 }
+
+private const val TAG = "ScanScreen"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -71,8 +75,15 @@ fun ScanScreen(
 
                 previewBitmap = bitmap
 
-                val recognizedText = recognizeTextFrom(bitmap)
-                val parsedItems = ReceiptParser.parse(recognizedText)
+                val parsedItems = try {
+                    GeminiReceiptScanner.scan(bitmap).ifEmpty {
+                        Log.w(TAG, "Gemini returned no items, falling back to ML Kit + regex")
+                        ReceiptParser.parse(recognizeTextFrom(bitmap))
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Gemini scan failed, falling back to ML Kit + regex", e)
+                    ReceiptParser.parse(recognizeTextFrom(bitmap))
+                }
 
                 if (parsedItems.isEmpty()) {
                     errorMessage =
