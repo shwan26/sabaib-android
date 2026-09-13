@@ -13,6 +13,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -22,7 +24,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.smnc.sabaib.R
+import com.smnc.sabaib.ui.groups.GroupsUiState
+import com.smnc.sabaib.ui.groups.GroupsViewModel
 import com.smnc.sabaib.ui.theme.SabaiBlack
 import com.smnc.sabaib.ui.theme.SabaiLightGray
 import com.smnc.sabaib.ui.theme.SabaiNavyDark
@@ -30,14 +35,18 @@ import com.smnc.sabaib.ui.theme.SabaiOffWhite
 import com.smnc.sabaib.ui.theme.SabaiWhite
 import com.smnc.sabaib.ui.theme.SabaiYellow
 
+private const val RECENT_GROUPS_LIMIT = 5
+
 @Composable
 fun HomeScreen(
     onScanClick: () -> Unit,
     onJoinBill: () -> Unit,
     userName: String = "Alex",
-    recentGroups: List<RecentGroupUi> = sampleRecentGroups,
+    groupsViewModel: GroupsViewModel = viewModel(),
     onGroupClick: (RecentGroupUi) -> Unit = {}
 ) {
+    val uiState by groupsViewModel.uiState.collectAsState()
+    val recentGroups = (uiState as? GroupsUiState.Loaded)?.groups.orEmpty().take(RECENT_GROUPS_LIMIT)
     Column(
         modifier = Modifier
             .fillMaxSize()

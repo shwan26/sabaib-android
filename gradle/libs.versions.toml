@@ -17,6 +17,7 @@ material3 = "1.4.0"
 mlkitTextRecognition = "16.0.1"
 zxingAndroidEmbedded = "4.3.0"
 kotlinxSerializationJson = "1.11.0"
+revenuecatPurchases = "10.20.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -44,6 +45,7 @@ ktor-client-android = { module = "io.ktor:ktor-client-android", version.ref = "k
 mlkit-text-recognition = { group = "com.google.mlkit", name = "text-recognition", version.ref = "mlkitTextRecognition" }
 zxing-android-embedded = { group = "com.journeyapps", name = "zxing-android-embedded", version.ref = "zxingAndroidEmbedded" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerializationJson" }
+revenuecat-purchases = { module = "com.revenuecat.purchases:purchases", version.ref = "revenuecatPurchases" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

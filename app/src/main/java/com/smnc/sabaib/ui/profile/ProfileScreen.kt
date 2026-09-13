@@ -59,6 +59,7 @@ fun ProfileScreen(
     val uiState by profileViewModel.uiState.collectAsState()
     val displayName = (uiState as? ProfileUiState.Loaded)?.displayName?.takeIf { it.isNotBlank() }
         ?: fallbackName
+    val isPremium = (uiState as? ProfileUiState.Loaded)?.plan == "premium"
 
     Column(
         modifier = Modifier
@@ -128,12 +129,12 @@ fun ProfileScreen(
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(50))
-                    .background(SabaiLightGray)
+                    .background(if (isPremium) SabaiYellow else SabaiLightGray)
                     .padding(horizontal = 12.dp, vertical = 5.dp)
             ) {
                 Text(
-                    text = "FREE PLAN",
-                    color = SabaiGray,
+                    text = if (isPremium) "SABAIB+" else "FREE PLAN",
+                    color = if (isPremium) SabaiBlack else SabaiGray,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -153,7 +154,7 @@ fun ProfileScreen(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "Upgrade to Sabai+",
+                    text = "Upgrade to SabaiB+",
                     color = SabaiBlack,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold

@@ -8,7 +8,6 @@ import androidx.lifecycle.viewModelScope
 import com.smnc.sabaib.data.BillRepository
 import com.smnc.sabaib.data.BillRow
 import com.smnc.sabaib.data.ItemClaimRepository
-import com.smnc.sabaib.data.ItemClaimRow
 import com.smnc.sabaib.data.ParticipantRepository
 import com.smnc.sabaib.data.ParticipantRow
 import com.smnc.sabaib.data.ProfileRepository
@@ -257,8 +256,9 @@ class BillViewModel(
 
         viewModelScope.launch {
             try {
-                val row = billRepository.saveBill(ownerId, _bill.value)
-                _bill.value = _bill.value.copy(id = row.id!!, code = row.code)
+                val saved = billRepository.saveBill(ownerId, _bill.value)
+                val row = saved.row
+                _bill.value = _bill.value.copy(id = row.id!!, code = row.code, items = saved.items)
 
                 val profile = runCatching { profileRepository.getProfile(ownerId) }.getOrNull()
                 val hostName = profile?.displayName?.takeIf { it.isNotBlank() } ?: hostNameFallback
@@ -278,6 +278,56 @@ class BillViewModel(
 
     fun resetSaveState() {
         _saveState.value = BillSaveState.Idle
+    }
+
+    /**
+     * Points this session at an existing bill the user tapped from
+     * Groups/Recent Groups - as host reopening it or a guest who already
+     * joined it. Unlike [adoptJoinedBill] (guest mid-join, no roster/items
+     * yet), this fully replaces every piece of per-bill state with a fresh
+     * snapshot from Supabase, including the roster and [currentParticipantId]
+     * (matched by [currentUserId] against each participant's [ParticipantRow.userId]),
+     * so nothing from a previously abandoned scan/join flow leaks in. Returns
+     * false (bill missing, or a network/decode failure) without touching any
+     * state, so the caller can simply skip navigating.
+     */
+    suspend fun loadExistingBill(billId: String, currentUserId: String?): Boolean {
+        return try {
+            val row = billRepository.findById(billId) ?: return false
+            val items = billRepository.findItemsByBillId(billId)
+            val participantRows = participantRepository.listByBillId(billId)
+
+            _bill.value = Bill(
+                id = row.id!!,
+                code = row.code,
+                restaurantName = row.restaurantName,
+                items = items,
+                subtotal = row.subtotal,
+                serviceChargeRate = row.serviceChargePercent / 100,
+                serviceChargeAmount = row.serviceChargeAmount,
+                vatRate = row.vatPercent / 100,
+                vatAmount = row.vatAmount,
+                discount = row.discountAmount,
+                total = row.totalAmount,
+                stage = BillStage.fromDb(row.status),
+                isSplitEvenly = row.isSplitEvenly,
+                splitDecided = row.splitDecided,
+                promptPayQrUrl = row.promptPayQrUrl
+            )
+            _participants.value = participantRows.map { it.toParticipant() }
+            _currentParticipantId.value = participantRows.find { it.userId == currentUserId }?.id
+            _itemSelections.value = emptyList()
+            _pendingRemovalIds.value = emptySet()
+            _paidStatus.value = emptyMap()
+            _isUploadingPromptPayQr.value = false
+            _saveState.value = BillSaveState.Idle
+
+            loadItemClaims(billId)
+            true
+        } catch (e: Exception) {
+            Log.e("BillViewModel", "Failed to load existing bill $billId", e)
+            false
+        }
     }
 
     /**
@@ -531,6 +581,23 @@ class BillViewModel(
     }
 
     /**
+     * Clears this device's own leftover "I'm ready to start splitting" flag
+     * right as the bill moves past the waiting room. Necessary because
+     * [advanceStage] resets ready flags via cross-user writes to every
+     * participant's row from whoever tapped Continue (normally the host) -
+     * those can silently fail under a "users can only update their own row"
+     * RLS policy, permanently tripping [canControlParticipant]'s
+     * already-confirmed lock for that participant on the Split screen. This
+     * is a self-row update instead, so it's never subject to that.
+     */
+    fun clearOwnReadyForNewStage(participantId: String?, billId: String) {
+        val target = _participants.value.find { it.id == participantId } ?: return
+        if (target.isReady) {
+            toggleReady(participantId!!, billId)
+        }
+    }
+
+    /**
      * Host-only action that moves the whole bill (and everyone polling it)
      * to [stage]. Resets every participant's ready/confirmed flag for the
      * new stage, both locally and best-effort in Supabase.
@@ -684,11 +751,9 @@ class BillViewModel(
         viewModelScope.launch {
             runCatching {
                 if (added) {
-                    itemClaimRepository.insertClaim(
-                        ItemClaimRow(itemId = itemId, participantId = participantId)
-                    )
+                    itemClaimRepository.claimItem(itemId, participantId)
                 } else {
-                    itemClaimRepository.deleteClaim(itemId, participantId)
+                    itemClaimRepository.unclaimItem(itemId, participantId)
                 }
             }.onFailure {
                 Log.e("BillViewModel", "Failed to persist item claim", it)

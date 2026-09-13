@@ -45,7 +45,10 @@ fun ParticipantsScreen(
     }
 
     LaunchedEffect(bill.stage) {
-        if (bill.stage == BillStage.SPLITTING) onContinue()
+        if (bill.stage == BillStage.SPLITTING) {
+            billViewModel.clearOwnReadyForNewStage(currentParticipantId, bill.id)
+            onContinue()
+        }
     }
 
     Column(

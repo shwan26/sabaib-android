@@ -13,7 +13,7 @@ import kotlinx.coroutines.launch
 
 sealed class ProfileUiState {
     object Loading : ProfileUiState()
-    data class Loaded(val displayName: String?) : ProfileUiState()
+    data class Loaded(val displayName: String?, val plan: String = "free") : ProfileUiState()
     data class Error(val message: String) : ProfileUiState()
 }
 
@@ -43,7 +43,7 @@ class ProfileViewModel(
         viewModelScope.launch {
             try {
                 val profile = profileRepository.getProfile(userId)
-                _uiState.value = ProfileUiState.Loaded(profile?.displayName)
+                _uiState.value = ProfileUiState.Loaded(profile?.displayName, profile?.plan ?: "free")
             } catch (e: Exception) {
                 _uiState.value = ProfileUiState.Error(e.toUserMessage())
             }
@@ -52,10 +52,11 @@ class ProfileViewModel(
 
     fun updateDisplayName(newName: String) {
         val userId = authRepository.currentUserId() ?: return
+        val currentPlan = (_uiState.value as? ProfileUiState.Loaded)?.plan ?: "free"
         viewModelScope.launch {
             try {
                 profileRepository.updateDisplayName(userId, newName)
-                _uiState.value = ProfileUiState.Loaded(newName)
+                _uiState.value = ProfileUiState.Loaded(newName, currentPlan)
             } catch (e: Exception) {
                 _uiState.value = ProfileUiState.Error(e.toUserMessage())
             }

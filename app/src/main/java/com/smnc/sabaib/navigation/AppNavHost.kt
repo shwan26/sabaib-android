@@ -10,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -21,15 +22,21 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.smnc.sabaib.data.AuthRepository
+import com.smnc.sabaib.data.BillingRepository
+import com.smnc.sabaib.model.BillStage
 import com.smnc.sabaib.ui.components.SabaiBottomNavBar
 import com.smnc.sabaib.ui.components.SabaiTab
 import com.smnc.sabaib.ui.groups.GroupsScreen
+import com.smnc.sabaib.ui.groups.GroupsViewModel
 import com.smnc.sabaib.ui.home.HomeScreen
+import com.smnc.sabaib.ui.home.RecentGroupUi
 import com.smnc.sabaib.ui.join.JoinBillScreen
 import com.smnc.sabaib.ui.landing.LandingScreen
 import com.smnc.sabaib.ui.login.ForgotPasswordScreen
 import com.smnc.sabaib.ui.login.LoginScreen
 import com.smnc.sabaib.ui.participants.ParticipantsScreen
+import com.smnc.sabaib.ui.paywall.PaywallScreen
+import com.smnc.sabaib.ui.paywall.PaywallViewModel
 import com.smnc.sabaib.ui.payment.PaymentScreen
 import com.smnc.sabaib.ui.payment.UserPaymentScreen
 import com.smnc.sabaib.ui.profile.ProfileScreen
@@ -42,6 +49,8 @@ import com.smnc.sabaib.ui.split.SplitScreen
 import com.smnc.sabaib.ui.theme.SabaiOffWhite
 import com.smnc.sabaib.util.OnboardingPrefs
 import com.smnc.sabaib.viewmodel.BillViewModel
+import io.github.jan.supabase.auth.status.SessionStatus
+import kotlinx.coroutines.launch
 
 private val MAIN_TAB_ROUTES = setOf(Screen.Home.route, Screen.Groups.route, Screen.Profile.route)
 
@@ -51,10 +60,40 @@ fun AppNavHost() {
     val navController = rememberNavController()
     val billViewModel: BillViewModel = viewModel()
     val profileViewModel: ProfileViewModel = viewModel()
+    val groupsViewModel: GroupsViewModel = viewModel()
+    val paywallViewModel: PaywallViewModel = viewModel()
     val authRepository = remember { AuthRepository() }
+    val billingRepository = remember { BillingRepository() }
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val startDestination = remember {
         if (OnboardingPrefs.hasSeenLanding(context)) Screen.Home.route else Screen.Landing.route
+    }
+
+    val onGroupClick: (RecentGroupUi) -> Unit = { group ->
+        coroutineScope.launch {
+            val loaded = billViewModel.loadExistingBill(group.id, authRepository.currentUserId())
+            if (loaded) {
+                val destination = if (billViewModel.bill.value.stage == BillStage.PAYMENT) {
+                    Screen.Payment.route
+                } else {
+                    Screen.BillRoom.route
+                }
+                navController.navigate(destination)
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        authRepository.sessionStatusFlow().collect { status ->
+            when (status) {
+                is SessionStatus.Authenticated -> {
+                    authRepository.currentUserId()?.let { billingRepository.logIn(it) }
+                }
+                is SessionStatus.NotAuthenticated -> billingRepository.logOut()
+                else -> Unit
+            }
+        }
     }
 
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
@@ -108,6 +147,8 @@ fun AppNavHost() {
 
         composable(Screen.Home.route) {
             HomeScreen(
+                groupsViewModel = groupsViewModel,
+                onGroupClick = onGroupClick,
                 onScanClick = {
                     billViewModel.startNewBill()
                     if (authRepository.isLoggedIn()) {
@@ -124,13 +165,16 @@ fun AppNavHost() {
         }
 
         composable(Screen.Groups.route) {
-            GroupsScreen()
+            GroupsScreen(groupsViewModel = groupsViewModel, onGroupClick = onGroupClick)
         }
 
         composable(Screen.Profile.route) {
             ProfileScreen(
                 authRepository = authRepository,
                 profileViewModel = profileViewModel,
+                onUpgradeClick = {
+                    navController.navigate(Screen.Paywall.route)
+                },
                 onSettingsClick = {
                     navController.navigate(Screen.Settings.route)
                 },
@@ -169,6 +213,16 @@ fun AppNavHost() {
                 },
                 onForgotPassword = {
                     navController.navigate(Screen.ForgotPassword.route)
+                }
+            )
+        }
+
+        composable(Screen.Paywall.route) {
+            PaywallScreen(
+                profileViewModel = profileViewModel,
+                paywallViewModel = paywallViewModel,
+                onBack = {
+                    navController.popBackStack()
                 }
             )
         }
