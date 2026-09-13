@@ -1,6 +1,7 @@
 package com.smnc.sabaib.navigation
 
 sealed class Screen(val route: String) {
+    data object Gate : Screen("gate")
     data object Landing : Screen("landing")
     data object Home : Screen("home")
     data object Groups : Screen("groups")

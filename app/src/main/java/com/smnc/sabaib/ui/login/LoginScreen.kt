@@ -17,6 +17,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -31,11 +33,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -58,6 +65,7 @@ fun LoginScreen(
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var isSignUpMode by remember { mutableStateOf(false) }
+    var agreedToTerms by remember { mutableStateOf(false) }
 
     val uiState by viewModel.uiState.collectAsStateSafe()
 
@@ -154,7 +162,46 @@ fun LoginScreen(
                 }
             }
         } else {
-            Spacer(modifier = Modifier.height(20.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Checkbox(
+                    checked = agreedToTerms,
+                    onCheckedChange = { agreedToTerms = it },
+                    colors = CheckboxDefaults.colors(checkedColor = SabaiNavy)
+                )
+                Text(
+                    text = buildAnnotatedString {
+                        append("I agree to the ")
+                        withLink(
+                            LinkAnnotation.Url(
+                                url = "https://sabaib.vercel.app/terms",
+                                styles = TextLinkStyles(
+                                    style = SpanStyle(color = SabaiNavy, textDecoration = TextDecoration.Underline)
+                                )
+                            )
+                        ) {
+                            append("Terms of Service")
+                        }
+                        append(" and ")
+                        withLink(
+                            LinkAnnotation.Url(
+                                url = "https://sabaib.vercel.app/privacy",
+                                styles = TextLinkStyles(
+                                    style = SpanStyle(color = SabaiNavy, textDecoration = TextDecoration.Underline)
+                                )
+                            )
+                        ) {
+                            append("Privacy Policy")
+                        }
+                    },
+                    color = SabaiBlack,
+                    fontSize = 13.sp
+                )
+            }
         }
 
         Spacer(modifier = Modifier.height(4.dp))
@@ -170,6 +217,7 @@ fun LoginScreen(
                         viewModel.signIn(email, password)
                     }
                 },
+                enabled = !isSignUpMode || agreedToTerms,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = SabaiYellow,
                     contentColor = SabaiBlack

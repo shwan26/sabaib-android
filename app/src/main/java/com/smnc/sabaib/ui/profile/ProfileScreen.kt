@@ -53,13 +53,8 @@ fun ProfileScreen(
 ) {
     val coroutineScope = rememberCoroutineScope()
     val email = authRepository.currentUserEmail()
-    val fallbackName = email
-        ?.substringBefore("@")
-        ?.replaceFirstChar { it.uppercase() }
-        ?: "Guest"
     val uiState by profileViewModel.uiState.collectAsState()
-    val displayName = (uiState as? ProfileUiState.Loaded)?.displayName?.takeIf { it.isNotBlank() }
-        ?: fallbackName
+    val displayName = resolveDisplayName(uiState, email)
     val isPremium = (uiState as? ProfileUiState.Loaded)?.plan == "premium"
 
     Column(

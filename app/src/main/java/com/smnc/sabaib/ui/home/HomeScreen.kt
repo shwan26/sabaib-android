@@ -41,7 +41,7 @@ private const val RECENT_GROUPS_LIMIT = 5
 fun HomeScreen(
     onScanClick: () -> Unit,
     onJoinBill: () -> Unit,
-    userName: String = "Alex",
+    userName: String = "Guest",
     groupsViewModel: GroupsViewModel = viewModel(),
     onGroupClick: (RecentGroupUi) -> Unit = {}
 ) {
@@ -58,7 +58,7 @@ fun HomeScreen(
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = "Welcome $userName!",
+                text = "Welcome, $userName!",
                 color = SabaiBlack,
                 fontSize = 26.sp,
                 fontWeight = FontWeight.Bold
