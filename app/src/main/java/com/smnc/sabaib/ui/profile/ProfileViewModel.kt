@@ -21,6 +21,17 @@ sealed class ProfileUiState {
     data class Error(val message: String) : ProfileUiState()
 }
 
+/** Resolves the name to show for the current user: their saved profile name,
+ * falling back to their email's local part, falling back to "Guest". */
+fun resolveDisplayName(uiState: ProfileUiState, fallbackEmail: String?): String {
+    val fallbackName = fallbackEmail
+        ?.substringBefore("@")
+        ?.replaceFirstChar { it.uppercase() }
+        ?: "Guest"
+    return (uiState as? ProfileUiState.Loaded)?.displayName?.takeIf { it.isNotBlank() }
+        ?: fallbackName
+}
+
 /** One-off outcomes of account actions - a [SharedFlow] (not [ProfileUiState]) so a
  * replayed value can't re-trigger navigation or re-show a result on recomposition. */
 sealed class AccountEvent {

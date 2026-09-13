@@ -4,15 +4,20 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -41,15 +46,17 @@ import com.smnc.sabaib.ui.payment.PaymentScreen
 import com.smnc.sabaib.ui.payment.UserPaymentScreen
 import com.smnc.sabaib.ui.profile.ProfileScreen
 import com.smnc.sabaib.ui.profile.ProfileViewModel
+import com.smnc.sabaib.ui.profile.resolveDisplayName
 import com.smnc.sabaib.ui.review.ReviewScreen
 import com.smnc.sabaib.ui.room.BillRoomScreen
 import com.smnc.sabaib.ui.scan.ScanScreen
 import com.smnc.sabaib.ui.settings.SettingsScreen
 import com.smnc.sabaib.ui.split.SplitScreen
 import com.smnc.sabaib.ui.theme.SabaiOffWhite
-import com.smnc.sabaib.util.OnboardingPrefs
+import com.smnc.sabaib.ui.theme.SabaiYellow
 import com.smnc.sabaib.viewmodel.BillViewModel
 import io.github.jan.supabase.auth.status.SessionStatus
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 private val MAIN_TAB_ROUTES = setOf(Screen.Home.route, Screen.Groups.route, Screen.Profile.route)
@@ -64,11 +71,7 @@ fun AppNavHost() {
     val paywallViewModel: PaywallViewModel = viewModel()
     val authRepository = remember { AuthRepository() }
     val billingRepository = remember { BillingRepository() }
-    val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-    val startDestination = remember {
-        if (OnboardingPrefs.hasSeenLanding(context)) Screen.Home.route else Screen.Landing.route
-    }
 
     val onGroupClick: (RecentGroupUi) -> Unit = { group ->
         coroutineScope.launch {
@@ -118,7 +121,7 @@ fun AppNavHost() {
     ) { paddingValues ->
         NavHost(
             navController = navController,
-            startDestination = startDestination,
+            startDestination = Screen.Gate.route,
             modifier = Modifier.padding(paddingValues),
             enterTransition = {
                 slideInHorizontally(initialOffsetX = { it }) + fadeIn()
@@ -134,10 +137,32 @@ fun AppNavHost() {
             }
         ) {
 
+        composable(Screen.Gate.route) {
+            LaunchedEffect(Unit) {
+                val status = authRepository.sessionStatusFlow()
+                    .first { it !is SessionStatus.Initializing }
+                val destination = if (status is SessionStatus.Authenticated) {
+                    Screen.Home.route
+                } else {
+                    Screen.Landing.route
+                }
+                navController.navigate(destination) {
+                    popUpTo(Screen.Gate.route) { inclusive = true }
+                }
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(SabaiOffWhite),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(color = SabaiYellow)
+            }
+        }
+
         composable(Screen.Landing.route) {
             LandingScreen(
                 onGetStarted = {
-                    OnboardingPrefs.markLandingSeen(context)
                     navController.navigate("login/home") {
                         popUpTo(Screen.Landing.route) { inclusive = true }
                     }
@@ -146,22 +171,34 @@ fun AppNavHost() {
         }
 
         composable(Screen.Home.route) {
-            HomeScreen(
-                groupsViewModel = groupsViewModel,
-                onGroupClick = onGroupClick,
-                onScanClick = {
-                    billViewModel.startNewBill()
-                    if (authRepository.isLoggedIn()) {
-                        navController.navigate(Screen.Scan.route)
-                    } else {
-                        navController.navigate("login/scan")
+            // Guard again in case of session expiry/refresh failure while already on this route
+            if (authRepository.isLoggedIn()) {
+                val profileUiState by profileViewModel.uiState.collectAsState()
+                val displayName = resolveDisplayName(profileUiState, authRepository.currentUserEmail())
+                HomeScreen(
+                    userName = displayName,
+                    groupsViewModel = groupsViewModel,
+                    onGroupClick = onGroupClick,
+                    onScanClick = {
+                        billViewModel.startNewBill()
+                        if (authRepository.isLoggedIn()) {
+                            navController.navigate(Screen.Scan.route)
+                        } else {
+                            navController.navigate("login/scan")
+                        }
+                    },
+                    onJoinBill = {
+                        billViewModel.startNewBill()
+                        navController.navigate("join_bill")
                     }
-                },
-                onJoinBill = {
-                    billViewModel.startNewBill()
-                    navController.navigate("join_bill")
+                )
+            } else {
+                LaunchedEffect(Unit) {
+                    navController.navigate(Screen.Landing.route) {
+                        popUpTo(Screen.Home.route) { inclusive = true }
+                    }
                 }
-            )
+            }
         }
 
         composable(Screen.Groups.route) {
