@@ -1,4 +1,4 @@
-package com.smnc.sabaib.ui.groups
+package com.smnc.sabaib.ui.payment
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -13,45 +13,45 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-sealed class GroupsUiState {
-    object Loading : GroupsUiState()
-    data class Loaded(val groups: List<RecentGroupUi>) : GroupsUiState()
-    data class Error(val message: String) : GroupsUiState()
+sealed class PaymentHistoryUiState {
+    object Loading : PaymentHistoryUiState()
+    data class Loaded(val bills: List<RecentGroupUi>) : PaymentHistoryUiState()
+    data class Error(val message: String) : PaymentHistoryUiState()
 }
 
-class GroupsViewModel(
+class PaymentHistoryViewModel(
     private val authRepository: AuthRepository = AuthRepository(),
     private val groupsRepository: GroupsRepository = GroupsRepository()
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow<GroupsUiState>(GroupsUiState.Loading)
-    val uiState: StateFlow<GroupsUiState> = _uiState.asStateFlow()
+    private val _uiState = MutableStateFlow<PaymentHistoryUiState>(PaymentHistoryUiState.Loading)
+    val uiState: StateFlow<PaymentHistoryUiState> = _uiState.asStateFlow()
 
     init {
         viewModelScope.launch {
             authRepository.sessionStatusFlow().collect { status ->
                 when (status) {
-                    is SessionStatus.Authenticated -> loadGroups()
-                    is SessionStatus.NotAuthenticated -> _uiState.value = GroupsUiState.Loaded(emptyList())
+                    is SessionStatus.Authenticated -> loadHistory()
+                    is SessionStatus.NotAuthenticated -> _uiState.value = PaymentHistoryUiState.Loaded(emptyList())
                     else -> Unit
                 }
             }
         }
     }
 
-    fun loadGroups() {
+    fun loadHistory() {
         val userId = authRepository.currentUserId() ?: return
-        _uiState.value = GroupsUiState.Loading
+        _uiState.value = PaymentHistoryUiState.Loading
         viewModelScope.launch {
             try {
-                val bills = groupsRepository.fetchHostedBills(userId)
+                val bills = groupsRepository.fetchJoinedBills(userId)
                 val counts = groupsRepository.fetchParticipantCounts(bills.map { it.id })
-                val groups = bills
+                val history = bills
                     .sortedByDescending { it.createdAt }
                     .map { it.toRecentGroupUi(counts[it.id] ?: 1) }
-                _uiState.value = GroupsUiState.Loaded(groups)
+                _uiState.value = PaymentHistoryUiState.Loaded(history)
             } catch (e: Exception) {
-                _uiState.value = GroupsUiState.Error(e.toUserMessage())
+                _uiState.value = PaymentHistoryUiState.Error(e.toUserMessage())
             }
         }
     }

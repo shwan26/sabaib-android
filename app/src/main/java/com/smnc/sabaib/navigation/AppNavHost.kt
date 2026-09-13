@@ -42,6 +42,8 @@ import com.smnc.sabaib.ui.login.LoginScreen
 import com.smnc.sabaib.ui.participants.ParticipantsScreen
 import com.smnc.sabaib.ui.paywall.PaywallScreen
 import com.smnc.sabaib.ui.paywall.PaywallViewModel
+import com.smnc.sabaib.ui.payment.PaymentHistoryScreen
+import com.smnc.sabaib.ui.payment.PaymentHistoryViewModel
 import com.smnc.sabaib.ui.payment.PaymentScreen
 import com.smnc.sabaib.ui.payment.UserPaymentScreen
 import com.smnc.sabaib.ui.profile.ProfileScreen
@@ -68,6 +70,7 @@ fun AppNavHost() {
     val billViewModel: BillViewModel = viewModel()
     val profileViewModel: ProfileViewModel = viewModel()
     val groupsViewModel: GroupsViewModel = viewModel()
+    val paymentHistoryViewModel: PaymentHistoryViewModel = viewModel()
     val paywallViewModel: PaywallViewModel = viewModel()
     val authRepository = remember { AuthRepository() }
     val billingRepository = remember { BillingRepository() }
@@ -212,6 +215,9 @@ fun AppNavHost() {
                 onUpgradeClick = {
                     navController.navigate(Screen.Paywall.route)
                 },
+                onPaymentHistoryClick = {
+                    navController.navigate(Screen.PaymentHistory.route)
+                },
                 onSettingsClick = {
                     navController.navigate(Screen.Settings.route)
                 },
@@ -220,6 +226,16 @@ fun AppNavHost() {
                         popUpTo(0) { inclusive = true }
                     }
                 }
+            )
+        }
+
+        composable(Screen.PaymentHistory.route) {
+            PaymentHistoryScreen(
+                paymentHistoryViewModel = paymentHistoryViewModel,
+                onBack = {
+                    navController.popBackStack()
+                },
+                onGroupClick = onGroupClick
             )
         }
 

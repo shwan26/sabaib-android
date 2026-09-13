@@ -6,24 +6,25 @@ class GroupsRepository {
 
     private val postgrest = SupabaseProvider.client.postgrest
 
-    suspend fun fetchBillsForUser(userId: String): List<GroupBillRow> {
-        val owned = postgrest["bills"].select {
+    suspend fun fetchHostedBills(userId: String): List<GroupBillRow> {
+        return postgrest["bills"].select {
             filter { eq("owner_id", userId) }
         }.decodeList<GroupBillRow>()
+    }
 
-        val participantBillIds = postgrest["participants"].select {
-            filter { eq("user_id", userId) }
+    suspend fun fetchJoinedBills(userId: String): List<GroupBillRow> {
+        val joinedBillIds = postgrest["participants"].select {
+            filter {
+                eq("user_id", userId)
+                eq("role", "member")
+            }
         }.decodeList<ParticipantRow>().map { it.billId }.distinct()
 
-        val joined = if (participantBillIds.isNotEmpty()) {
-            postgrest["bills"].select {
-                filter { isIn("id", participantBillIds) }
-            }.decodeList<GroupBillRow>()
-        } else {
-            emptyList()
-        }
+        if (joinedBillIds.isEmpty()) return emptyList()
 
-        return (owned + joined).distinctBy { it.id }
+        return postgrest["bills"].select {
+            filter { isIn("id", joinedBillIds) }
+        }.decodeList<GroupBillRow>()
     }
 
     suspend fun fetchParticipantCounts(billIds: List<String>): Map<String, Int> {
