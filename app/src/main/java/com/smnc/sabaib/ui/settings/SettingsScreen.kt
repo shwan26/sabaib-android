@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -28,25 +29,51 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.smnc.sabaib.ui.components.ConfirmDialog
+import com.smnc.sabaib.ui.components.ProfileMenuRow
+import com.smnc.sabaib.ui.profile.AccountEvent
 import com.smnc.sabaib.ui.profile.ProfileUiState
 import com.smnc.sabaib.ui.profile.ProfileViewModel
 import com.smnc.sabaib.ui.theme.SabaiBlack
 import com.smnc.sabaib.ui.theme.SabaiError
 import com.smnc.sabaib.ui.theme.SabaiOffWhite
+import com.smnc.sabaib.ui.theme.SabaiSuccess
 import com.smnc.sabaib.ui.theme.SabaiWhite
 import com.smnc.sabaib.ui.theme.SabaiYellow
 
 @Composable
 fun SettingsScreen(
     profileViewModel: ProfileViewModel,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onAccountDeleted: () -> Unit
 ) {
     val uiState by profileViewModel.uiState.collectAsState()
     var name by remember { mutableStateOf("") }
+    var isChangeNameExpanded by remember { mutableStateOf(false) }
+    var showClearDataDialog by remember { mutableStateOf(false) }
+    var showDeleteAccountDialog by remember { mutableStateOf(false) }
+    var statusMessage by remember { mutableStateOf<String?>(null) }
+    var isStatusError by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState) {
         if (uiState is ProfileUiState.Loaded) {
             name = (uiState as ProfileUiState.Loaded).displayName.orEmpty()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        profileViewModel.accountEvent.collect { event ->
+            when (event) {
+                is AccountEvent.DataCleared -> {
+                    isStatusError = false
+                    statusMessage = "Your data has been cleared."
+                }
+                is AccountEvent.AccountDeleted -> onAccountDeleted()
+                is AccountEvent.Failed -> {
+                    isStatusError = true
+                    statusMessage = event.message
+                }
+            }
         }
     }
 
@@ -82,58 +109,110 @@ fun SettingsScreen(
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(20.dp))
                 .background(SabaiWhite)
-                .padding(24.dp)
         ) {
-            Text(
-                text = "Change name",
-                color = SabaiBlack,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold
+            ProfileMenuRow(
+                label = "Change name",
+                onClick = { isChangeNameExpanded = !isChangeNameExpanded }
             )
 
-            Spacer(modifier = Modifier.height(12.dp))
-
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                singleLine = true
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            if (uiState is ProfileUiState.Loading) {
-                CircularProgressIndicator()
-            } else {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(50))
-                        .background(SabaiYellow)
-                        .clickable(
-                            onClick = { profileViewModel.updateDisplayName(name.trim()) }
-                        )
-                        .padding(vertical = 14.dp),
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    Text(
-                        text = "Save",
-                        color = SabaiBlack,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold
+            if (isChangeNameExpanded) {
+                Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp)) {
+                    OutlinedTextField(
+                        value = name,
+                        onValueChange = { name = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        singleLine = true
                     )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    if (uiState is ProfileUiState.Loading) {
+                        CircularProgressIndicator()
+                    } else {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(50))
+                                .background(SabaiYellow)
+                                .clickable(
+                                    onClick = { profileViewModel.updateDisplayName(name.trim()) }
+                                )
+                                .padding(vertical = 14.dp),
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Text(
+                                text = "Save",
+                                color = SabaiBlack,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
                 }
             }
 
-            if (uiState is ProfileUiState.Error) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = (uiState as ProfileUiState.Error).message,
-                    color = SabaiError,
-                    fontSize = 13.sp
-                )
-            }
+            HorizontalDivider(color = SabaiOffWhite, thickness = 1.dp)
+
+            ProfileMenuRow(
+                label = "Clear data",
+                labelColor = SabaiError,
+                showArrow = false,
+                onClick = { showClearDataDialog = true }
+            )
+
+            HorizontalDivider(color = SabaiOffWhite, thickness = 1.dp)
+
+            ProfileMenuRow(
+                label = "Delete account",
+                labelColor = SabaiError,
+                showArrow = false,
+                onClick = { showDeleteAccountDialog = true }
+            )
         }
+
+        if (uiState is ProfileUiState.Error) {
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = (uiState as ProfileUiState.Error).message,
+                color = SabaiError,
+                fontSize = 13.sp
+            )
+        }
+
+        statusMessage?.let { message ->
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = message,
+                color = if (isStatusError) SabaiError else SabaiSuccess,
+                fontSize = 13.sp
+            )
+        }
+    }
+
+    if (showClearDataDialog) {
+        ConfirmDialog(
+            title = "Clear data?",
+            message = "This will delete all of your bills and groups. This can't be undone.",
+            confirmLabel = "Clear data",
+            onConfirm = {
+                showClearDataDialog = false
+                profileViewModel.clearData()
+            },
+            onDismiss = { showClearDataDialog = false }
+        )
+    }
+
+    if (showDeleteAccountDialog) {
+        ConfirmDialog(
+            title = "Delete account?",
+            message = "This will permanently delete your account and all of your data. This can't be undone.",
+            confirmLabel = "Delete account",
+            onConfirm = {
+                showDeleteAccountDialog = false
+                profileViewModel.deleteAccount()
+            },
+            onDismiss = { showDeleteAccountDialog = false }
+        )
     }
 }

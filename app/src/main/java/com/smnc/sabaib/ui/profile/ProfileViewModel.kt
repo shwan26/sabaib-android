@@ -2,12 +2,16 @@ package com.smnc.sabaib.ui.profile
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.smnc.sabaib.data.AccountRepository
 import com.smnc.sabaib.data.AuthRepository
 import com.smnc.sabaib.data.ProfileRepository
 import com.smnc.sabaib.data.toUserMessage
 import io.github.jan.supabase.auth.status.SessionStatus
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
@@ -17,13 +21,25 @@ sealed class ProfileUiState {
     data class Error(val message: String) : ProfileUiState()
 }
 
+/** One-off outcomes of account actions - a [SharedFlow] (not [ProfileUiState]) so a
+ * replayed value can't re-trigger navigation or re-show a result on recomposition. */
+sealed class AccountEvent {
+    object DataCleared : AccountEvent()
+    object AccountDeleted : AccountEvent()
+    data class Failed(val message: String) : AccountEvent()
+}
+
 class ProfileViewModel(
     private val authRepository: AuthRepository = AuthRepository(),
-    private val profileRepository: ProfileRepository = ProfileRepository()
+    private val profileRepository: ProfileRepository = ProfileRepository(),
+    private val accountRepository: AccountRepository = AccountRepository(authRepository)
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<ProfileUiState>(ProfileUiState.Loading)
     val uiState: StateFlow<ProfileUiState> = _uiState.asStateFlow()
+
+    private val _accountEvent = MutableSharedFlow<AccountEvent>()
+    val accountEvent: SharedFlow<AccountEvent> = _accountEvent.asSharedFlow()
 
     init {
         viewModelScope.launch {
@@ -59,6 +75,29 @@ class ProfileViewModel(
                 _uiState.value = ProfileUiState.Loaded(newName, currentPlan)
             } catch (e: Exception) {
                 _uiState.value = ProfileUiState.Error(e.toUserMessage())
+            }
+        }
+    }
+
+    fun clearData() {
+        val userId = authRepository.currentUserId() ?: return
+        viewModelScope.launch {
+            try {
+                accountRepository.clearData(userId)
+                _accountEvent.emit(AccountEvent.DataCleared)
+            } catch (e: Exception) {
+                _accountEvent.emit(AccountEvent.Failed(e.toUserMessage()))
+            }
+        }
+    }
+
+    fun deleteAccount() {
+        viewModelScope.launch {
+            try {
+                accountRepository.deleteAccount()
+                _accountEvent.emit(AccountEvent.AccountDeleted)
+            } catch (e: Exception) {
+                _accountEvent.emit(AccountEvent.Failed(e.toUserMessage()))
             }
         }
     }

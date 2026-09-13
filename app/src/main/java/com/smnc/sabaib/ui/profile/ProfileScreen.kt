@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.Image
 import com.smnc.sabaib.R
 import com.smnc.sabaib.data.AuthRepository
+import com.smnc.sabaib.ui.components.ProfileMenuRow
 import com.smnc.sabaib.ui.theme.SabaiBlack
 import com.smnc.sabaib.ui.theme.SabaiError
 import com.smnc.sabaib.ui.theme.SabaiGray
@@ -200,32 +201,5 @@ fun ProfileScreen(
         }
 
         Spacer(modifier = Modifier.height(24.dp))
-    }
-}
-
-@Composable
-private fun ProfileMenuRow(
-    label: String,
-    onClick: () -> Unit,
-    labelColor: androidx.compose.ui.graphics.Color = SabaiBlack,
-    showArrow: Boolean = true
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 18.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = label,
-            color = labelColor,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Medium,
-            modifier = Modifier.weight(1f)
-        )
-        if (showArrow) {
-            Text(text = "→", color = SabaiGray, fontSize = 16.sp)
-        }
     }
 }

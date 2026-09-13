@@ -191,6 +191,11 @@ fun AppNavHost() {
                 profileViewModel = profileViewModel,
                 onBack = {
                     navController.popBackStack()
+                },
+                onAccountDeleted = {
+                    navController.navigate(Screen.Landing.route) {
+                        popUpTo(0) { inclusive = true }
+                    }
                 }
             )
         }
