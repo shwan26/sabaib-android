@@ -39,12 +39,16 @@ fun ParticipantsScreen(
         while (true) {
             billViewModel.loadParticipants(bill.id)
             billViewModel.pollBillState(bill.id)
+            billViewModel.loadBillItemsIfMissing(bill.id)
             delay(3000)
         }
     }
 
     LaunchedEffect(bill.stage) {
-        if (bill.stage == BillStage.SPLITTING) onContinue()
+        if (bill.stage == BillStage.SPLITTING) {
+            billViewModel.clearOwnReadyForNewStage(currentParticipantId, bill.id)
+            onContinue()
+        }
     }
 
     Column(

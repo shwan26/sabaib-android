@@ -28,6 +28,7 @@ import com.smnc.sabaib.ui.theme.SabaiLightGray
 import com.smnc.sabaib.ui.theme.SabaiNavy
 import com.smnc.sabaib.ui.theme.SabaiNavyLight
 import com.smnc.sabaib.ui.theme.SabaiOffWhite
+import com.smnc.sabaib.ui.theme.SabaiSuccess
 import com.smnc.sabaib.ui.theme.SabaiWhite
 import com.smnc.sabaib.ui.theme.SabaiYellow
 import com.smnc.sabaib.viewmodel.BillViewModel
@@ -66,15 +67,12 @@ fun SplitScreen(
 
     val hasUnclaimedItems = billViewModel.hasUnclaimedItems()
 
-    var promptPayInput by remember {
-        mutableStateOf(billViewModel.promptPayNumber.value.orEmpty())
-    }
-
     LaunchedEffect(bill.id) {
         while (true) {
             billViewModel.loadParticipants(bill.id)
             billViewModel.pollBillState(bill.id)
             billViewModel.loadItemClaims(bill.id)
+            billViewModel.loadBillItemsIfMissing(bill.id)
             delay(2000)
         }
     }
@@ -105,207 +103,190 @@ fun SplitScreen(
         }
     ) { paddingValues ->
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(horizontal = 16.dp, vertical = 12.dp)
-        ) {
+        when {
+            !bill.splitDecided -> SplitDecisionSection(
+                paddingValues = paddingValues,
+                viewerIsHost = viewerIsHost,
+                onChooseEvenly = { billViewModel.chooseSplitEvenly(bill.id) },
+                onChooseItems = { billViewModel.chooseSplitByItems(bill.id) }
+            )
 
-            Column(
+            bill.isSplitEvenly -> SplitEvenlyTransitionSection(paddingValues = paddingValues)
+
+            else -> Column(
                 modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .background(SabaiOffWhite, RoundedCornerShape(24.dp))
-                    .padding(16.dp)
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
             ) {
 
-                Text(
-                    text = when {
-                        bill.isSplitEvenly ->
-                            "The bill is split evenly between everyone."
-                        viewerIsHost ->
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .background(SabaiOffWhite, RoundedCornerShape(24.dp))
+                        .padding(16.dp)
+                ) {
+
+                    Text(
+                        text = if (viewerIsHost) {
                             "Tap a name, then tap the dishes that are theirs."
-                        else ->
+                        } else {
                             "Tap a dish that's yours."
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = SabaiGray
-                )
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = SabaiGray
+                    )
 
-                Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    items(
-                        items = participants,
-                        key = { it.id }
-                    ) { participant ->
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items(
+                            items = participants,
+                            key = { it.id }
+                        ) { participant ->
 
-                        val canAct = billViewModel.canControlParticipant(
-                            viewerId,
-                            participant.id
-                        )
+                            val canAct = billViewModel.canControlParticipant(
+                                viewerId,
+                                participant.id
+                            )
 
-                        ParticipantSplitChip(
-                            participant = participant,
-                            displayName = participant.name,
-                            isSelf = participant.id == viewerId,
-                            color = participantColors[participant.id] ?: SabaiGray,
-                            amount = billViewModel.calculateParticipantSubtotal(participant.id),
-                            isActive = !bill.isSplitEvenly && activeParticipantId == participant.id,
-                            isEnabled = canAct,
-                            onClick = {
-                                if (canAct) {
-                                    activeParticipantId = participant.id
+                            ParticipantSplitChip(
+                                participant = participant,
+                                displayName = participant.name,
+                                isSelf = participant.id == viewerId,
+                                color = participantColors[participant.id] ?: SabaiGray,
+                                amount = billViewModel.calculateParticipantSubtotal(participant.id),
+                                isActive = activeParticipantId == participant.id,
+                                isEnabled = canAct,
+                                isConfirmed = participant.isReady,
+                                onClick = {
+                                    if (canAct) {
+                                        activeParticipantId = participant.id
+                                    }
                                 }
-                            }
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                LazyColumn(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-
-                    items(
-                        items = bill.items,
-                        key = { it.id }
-                    ) { item ->
-
-                        val selection = selections.find {
-                            it.itemId == item.id
+                            )
                         }
-
-                        val selectedIds = selection?.participantIds ?: emptySet()
-
-                        val canEditThisItem = !bill.isSplitEvenly &&
-                                activeParticipantId != null &&
-                                billViewModel.canControlParticipant(viewerId, activeParticipantId!!)
-
-                        SplitItemCard(
-                            item = item,
-                            effectivePrice = billViewModel.itemEffectivePrice(item),
-                            participants = participants,
-                            participantColors = participantColors,
-                            selectedParticipantIds = selectedIds,
-                            isSplitEvenly = bill.isSplitEvenly,
-                            isHighlighted = activeParticipantId != null &&
-                                    activeParticipantId in selectedIds,
-                            isInteractive = canEditThisItem,
-                            onTap = {
-                                activeParticipantId?.let { id ->
-                                    billViewModel.toggleItemSelection(
-                                        itemId = item.id,
-                                        participantId = id
-                                    )
-                                }
-                            }
-                        )
                     }
 
-                    item {
-                        Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
-                        SplitEvenlyRow(
-                            checked = bill.isSplitEvenly,
-                            enabled = viewerIsHost,
-                            onToggle = {
-                                billViewModel.setSplitEvenly(!bill.isSplitEvenly, bill.id)
+                    LazyColumn(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+
+                        items(
+                            items = bill.items,
+                            key = { it.id }
+                        ) { item ->
+
+                            val selection = selections.find {
+                                it.itemId == item.id
                             }
-                        )
 
-                        if (viewerIsHost) {
-                            Spacer(modifier = Modifier.height(12.dp))
+                            val selectedIds = selection?.participantIds ?: emptySet()
 
-                            OutlinedTextField(
-                                value = promptPayInput,
-                                onValueChange = { promptPayInput = it },
-                                label = { Text("PromptPay number") },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth()
+                            val canEditThisItem = activeParticipantId != null &&
+                                    billViewModel.canControlParticipant(viewerId, activeParticipantId!!)
+
+                            SplitItemCard(
+                                item = item,
+                                effectivePrice = billViewModel.itemEffectivePrice(item),
+                                participants = participants,
+                                participantColors = participantColors,
+                                selectedParticipantIds = selectedIds,
+                                isSplitEvenly = false,
+                                isHighlighted = activeParticipantId != null &&
+                                        activeParticipantId in selectedIds,
+                                isInteractive = canEditThisItem,
+                                onTap = {
+                                    activeParticipantId?.let { id ->
+                                        billViewModel.toggleItemSelection(
+                                            itemId = item.id,
+                                            participantId = id
+                                        )
+                                    }
+                                }
                             )
                         }
                     }
                 }
-            }
 
-            if (hasUnclaimedItems) {
+                if (hasUnclaimedItems) {
 
-                Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
-                Text(
-                    text = "Assign every item before continuing.",
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
+                    Text(
+                        text = "Assign every item before continuing.",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
 
-            Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
-            HorizontalDivider()
+                HorizontalDivider()
 
-            Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = "Your total",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = SabaiGray
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Your total",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = SabaiGray
+                    )
 
-                Text(
-                    text = "฿${"%.0f".format(
-                        viewerId?.let { billViewModel.calculateParticipantSubtotal(it) } ?: 0.0
-                    )}",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = SabaiBlack
-                )
-            }
+                    Text(
+                        text = "฿${"%.0f".format(
+                            viewerId?.let { billViewModel.calculateParticipantSubtotal(it) } ?: 0.0
+                        )}",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = SabaiBlack
+                    )
+                }
 
-            Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-            val selfConfirmed = viewer?.isReady == true
+                val selfConfirmed = viewer?.isReady == true
 
-            Button(
-                onClick = {
-                    if (viewerIsHost) {
-                        billViewModel.updatePromptPayNumber(promptPayInput)
-                        billViewModel.advanceStage(bill.id, BillStage.PAYMENT)
-                    } else {
-                        viewerId?.let { billViewModel.toggleReady(it, bill.id) }
-                    }
-                },
-                enabled = if (viewerIsHost) {
-                    !hasUnclaimedItems && promptPayInput.isNotBlank()
-                } else {
-                    !hasUnclaimedItems && viewerId != null && !selfConfirmed
-                },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = SabaiYellow,
-                    contentColor = SabaiBlack
-                ),
-                shape = RoundedCornerShape(20.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp)
-            ) {
-                Text(
-                    text = when {
-                        viewerIsHost -> "Continue"
-                        selfConfirmed -> "Waiting for host..."
-                        else -> "Confirm"
+                Button(
+                    onClick = {
+                        if (viewerIsHost) {
+                            billViewModel.advanceStage(bill.id, BillStage.PAYMENT)
+                        } else {
+                            viewerId?.let { billViewModel.toggleReady(it, bill.id) }
+                        }
                     },
-                    fontWeight = FontWeight.Bold
-                )
+                    enabled = if (viewerIsHost) {
+                        !hasUnclaimedItems
+                    } else {
+                        !hasUnclaimedItems && viewerId != null && !selfConfirmed
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = SabaiYellow,
+                        contentColor = SabaiBlack
+                    ),
+                    shape = RoundedCornerShape(20.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp)
+                ) {
+                    Text(
+                        text = when {
+                            viewerIsHost -> "Continue"
+                            selfConfirmed -> "Waiting for host..."
+                            else -> "Confirm"
+                        },
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
         }
     }
@@ -320,6 +301,7 @@ private fun ParticipantSplitChip(
     amount: Double,
     isActive: Boolean,
     isEnabled: Boolean,
+    isConfirmed: Boolean,
     onClick: () -> Unit
 ) {
     Row(
@@ -377,54 +359,130 @@ private fun ParticipantSplitChip(
             style = MaterialTheme.typography.bodyMedium,
             color = SabaiGray
         )
-    }
-}
 
-@Composable
-private fun SplitEvenlyRow(
-    checked: Boolean,
-    enabled: Boolean,
-    onToggle: () -> Unit
-) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .fillMaxWidth()
-            .alpha(if (enabled) 1f else 0.6f)
-            .let { base ->
-                if (enabled) base.clickable { onToggle() } else base
-            }
-            .padding(vertical = 10.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .size(20.dp)
-                .border(
-                    width = 1.5.dp,
-                    color = if (checked) SabaiYellow else SabaiLightGray,
-                    shape = CircleShape
-                )
-                .background(
-                    if (checked) SabaiYellow else Color.Transparent,
-                    CircleShape
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            if (checked) {
-                Box(
-                    modifier = Modifier
-                        .size(8.dp)
-                        .background(SabaiWhite, CircleShape)
+        if (isConfirmed) {
+            Spacer(modifier = Modifier.width(6.dp))
+
+            Box(
+                modifier = Modifier
+                    .size(18.dp)
+                    .background(SabaiSuccess, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "✓",
+                    color = SabaiWhite,
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.labelSmall
                 )
             }
         }
+    }
+}
 
-        Spacer(modifier = Modifier.width(12.dp))
+/**
+ * Shown before the host has made the evenly-vs-by-item call - see
+ * [com.smnc.sabaib.model.Bill.splitDecided]. Only the host can act here;
+ * everyone else just waits, so nobody can start tapping items before the
+ * host has actually decided how the bill is being split at all.
+ */
+@Composable
+private fun SplitDecisionSection(
+    paddingValues: PaddingValues,
+    viewerIsHost: Boolean,
+    onChooseEvenly: () -> Unit,
+    onChooseItems: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(paddingValues)
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(
+            text = "How should this bill be split?",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = SabaiBlack
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        if (viewerIsHost) {
+            Text(
+                text = "Choose how everyone pays. This can't be changed later.",
+                style = MaterialTheme.typography.bodySmall,
+                color = SabaiGray
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Button(
+                onClick = onChooseEvenly,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = SabaiYellow,
+                    contentColor = SabaiBlack
+                ),
+                shape = RoundedCornerShape(20.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+            ) {
+                Text("Split Evenly", fontWeight = FontWeight.Bold)
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            OutlinedButton(
+                onClick = onChooseItems,
+                shape = RoundedCornerShape(20.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+            ) {
+                Text("Split by Items", fontWeight = FontWeight.Bold)
+            }
+        } else {
+            CircularProgressIndicator(color = SabaiYellow)
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Text(
+                text = "Waiting for the host to choose how to split the bill...",
+                style = MaterialTheme.typography.bodySmall,
+                color = SabaiGray
+            )
+        }
+    }
+}
+
+/**
+ * Brief transitional state after the host picks "Split Evenly": there's
+ * nothing to divide up per-item, so the bill's stage is already moving to
+ * PAYMENT (see [com.smnc.sabaib.viewmodel.BillViewModel.chooseSplitEvenly]).
+ * Guests see this for up to one poll interval while their own device
+ * catches up to that stage change.
+ */
+@Composable
+private fun SplitEvenlyTransitionSection(paddingValues: PaddingValues) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(paddingValues)
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        CircularProgressIndicator(color = SabaiYellow)
+
+        Spacer(modifier = Modifier.height(12.dp))
 
         Text(
-            text = "Split all evenly to everyone",
-            style = MaterialTheme.typography.bodyMedium,
-            color = SabaiBlack
+            text = "Splitting evenly - heading to payment...",
+            style = MaterialTheme.typography.bodySmall,
+            color = SabaiGray
         )
     }
 }

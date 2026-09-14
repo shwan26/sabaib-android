@@ -1,5 +1,7 @@
 package com.smnc.sabaib.ui.payment
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -23,17 +25,21 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.smnc.sabaib.R
+import com.smnc.sabaib.ui.components.PromptPayQrSection
 import com.smnc.sabaib.ui.theme.SabaiBlack
 import com.smnc.sabaib.ui.theme.SabaiCharcoal
 import com.smnc.sabaib.ui.theme.SabaiGray
 import com.smnc.sabaib.ui.theme.SabaiWhite
 import com.smnc.sabaib.ui.theme.SabaiYellow
 import com.smnc.sabaib.viewmodel.BillViewModel
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -48,8 +54,29 @@ fun PaymentScreen(
     val participants by billViewModel.participants
     val paidStatus by billViewModel.paidStatus
     val currentParticipantId by billViewModel.currentParticipantId
+    val isUploadingPromptPayQr by billViewModel.isUploadingPromptPayQr
 
     val totals = billViewModel.calculateParticipantTotals()
+
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+
+    val qrPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+
+        coroutineScope.launch {
+            val bytes = runCatching {
+                context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+            }.getOrNull()
+
+            if (bytes != null) {
+                val contentType = context.contentResolver.getType(uri)
+                billViewModel.uploadPromptPayQr(bill.id, bytes, contentType)
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -102,6 +129,13 @@ fun PaymentScreen(
                     style = MaterialTheme.typography.headlineMedium
                 )
             }
+
+            PromptPayQrSection(
+                qrUrl = bill.promptPayQrUrl,
+                isUploading = isUploadingPromptPayQr,
+                onAddClick = { qrPickerLauncher.launch("image/*") },
+                onRemoveClick = { billViewModel.removePromptPayQr(bill.id) }
+            )
 
             Column(
                 verticalArrangement = Arrangement.spacedBy(12.dp)

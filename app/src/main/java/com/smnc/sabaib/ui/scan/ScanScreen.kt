@@ -4,10 +4,12 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
@@ -26,6 +28,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.smnc.sabaib.R
+import com.smnc.sabaib.data.AuthRepository
+import com.smnc.sabaib.data.ProfileRepository
+import com.smnc.sabaib.domain.scan.GeminiReceiptScanner
 import com.smnc.sabaib.domain.scan.ReceiptParser
 import com.smnc.sabaib.ui.theme.SabaiBlack
 import com.smnc.sabaib.ui.theme.SabaiLightGray
@@ -33,19 +38,25 @@ import com.smnc.sabaib.ui.theme.SabaiWhite
 import com.smnc.sabaib.ui.theme.SabaiYellow
 import com.smnc.sabaib.viewmodel.BillViewModel
 import com.smnc.sabaib.util.createScanImageUri
+import com.smnc.sabaib.util.hasSuppressedGeminiConsent
 import com.smnc.sabaib.util.loadRotatedBitmap
 import com.smnc.sabaib.util.recognizeTextFrom
+import com.smnc.sabaib.util.suppressGeminiConsent
 import kotlinx.coroutines.launch
 
 private enum class ScanState {
-    Idle, Preview, Processing, Error
+    Idle, ImageReady, Preview, Processing, Error
 }
+
+private const val TAG = "ScanScreen"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ScanScreen(
     billViewModel: BillViewModel,
+    authRepository: AuthRepository,
     onContinue: () -> Unit,
+    onLimitReached: () -> Unit,
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -55,24 +66,38 @@ fun ScanScreen(
     var previewBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
+    var showGeminiConsentDialog by remember { mutableStateOf(false) }
 
-    fun processImage(uri: Uri) {
+    fun loadImage(uri: Uri) {
+        coroutineScope.launch {
+            val bitmap = loadRotatedBitmap(context, uri)
+
+            if (bitmap == null) {
+                errorMessage = "Couldn't read that photo. Please try again."
+                scanState = ScanState.Error
+                return@launch
+            }
+
+            previewBitmap = bitmap
+            errorMessage = null
+            scanState = ScanState.ImageReady
+        }
+    }
+
+    fun runScan(bitmap: Bitmap) {
         scanState = ScanState.Processing
 
         coroutineScope.launch {
             try {
-                val bitmap = loadRotatedBitmap(context, uri)
-
-                if (bitmap == null) {
-                    errorMessage = "Couldn't read that photo. Please try again."
-                    scanState = ScanState.Error
-                    return@launch
+                val parsedItems = try {
+                    GeminiReceiptScanner.scan(bitmap).ifEmpty {
+                        Log.w(TAG, "Gemini returned no items, falling back to ML Kit + regex")
+                        ReceiptParser.parse(recognizeTextFrom(bitmap))
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Gemini scan failed, falling back to ML Kit + regex", e)
+                    ReceiptParser.parse(recognizeTextFrom(bitmap))
                 }
-
-                previewBitmap = bitmap
-
-                val recognizedText = recognizeTextFrom(bitmap)
-                val parsedItems = ReceiptParser.parse(recognizedText)
 
                 if (parsedItems.isEmpty()) {
                     errorMessage =
@@ -92,12 +117,33 @@ fun ScanScreen(
         }
     }
 
+    fun confirmImage(bitmap: Bitmap) {
+        val userId = authRepository.currentUserId()
+        if (userId == null) {
+            errorMessage = "Please sign in again to continue."
+            scanState = ScanState.Error
+            return
+        }
+
+        scanState = ScanState.Processing
+
+        coroutineScope.launch {
+            when (billViewModel.consumeFreeScan(userId)) {
+                ProfileRepository.ScanQuotaResult.LimitReached -> {
+                    scanState = ScanState.ImageReady
+                    onLimitReached()
+                }
+                ProfileRepository.ScanQuotaResult.Allowed -> runScan(bitmap)
+            }
+        }
+    }
+
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
     ) { success ->
         val uri = pendingCameraUri
         if (success && uri != null) {
-            processImage(uri)
+            loadImage(uri)
         } else {
             scanState = ScanState.Idle
         }
@@ -107,7 +153,7 @@ fun ScanScreen(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
         if (uri != null) {
-            processImage(uri)
+            loadImage(uri)
         }
     }
 
@@ -266,6 +312,68 @@ fun ScanScreen(
                     }
                 }
 
+                ScanState.ImageReady -> {
+
+                    previewBitmap?.let { bitmap ->
+                        Image(
+                            bitmap = bitmap.asImageBitmap(),
+                            contentDescription = "Captured receipt photo",
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 320.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text(
+                        text = "Looks good? We'll read the items off this photo.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+
+                    errorMessage?.let { message ->
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = message,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    Button(
+                        onClick = {
+                            if (hasSuppressedGeminiConsent(context)) {
+                                previewBitmap?.let { bitmap -> confirmImage(bitmap) }
+                            } else {
+                                showGeminiConsentDialog = true
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = SabaiYellow,
+                            contentColor = SabaiBlack
+                        ),
+                        shape = RoundedCornerShape(20.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(56.dp)
+                    ) {
+                        Text("Continue with this image", fontWeight = FontWeight.Bold)
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    OutlinedButton(
+                        onClick = { retake() },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Retake Photo")
+                    }
+                }
+
                 ScanState.Processing -> {
 
                     Spacer(modifier = Modifier.height(64.dp))
@@ -340,4 +448,56 @@ fun ScanScreen(
             }
         }
     }
+
+    if (showGeminiConsentDialog) {
+        GeminiConsentDialog(
+            onAgree = { dontShowAgain ->
+                showGeminiConsentDialog = false
+                if (dontShowAgain) suppressGeminiConsent(context)
+                previewBitmap?.let { bitmap -> confirmImage(bitmap) }
+            },
+            onDismiss = { showGeminiConsentDialog = false }
+        )
+    }
+}
+
+@Composable
+private fun GeminiConsentDialog(
+    onAgree: (dontShowAgain: Boolean) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var dontShowAgain by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Scan with Gemini") },
+        text = {
+            Column {
+                Text("We'll use Google Gemini to scan and read the items on this receipt. Do you agree?")
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.clickable { dontShowAgain = !dontShowAgain }
+                ) {
+                    Checkbox(
+                        checked = dontShowAgain,
+                        onCheckedChange = { dontShowAgain = it }
+                    )
+                    Text("Don't show this again")
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onAgree(dontShowAgain) }) {
+                Text("Agree")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }

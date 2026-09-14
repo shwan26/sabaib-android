@@ -19,6 +19,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.smnc.sabaib.data.GroupBillRow
 import com.smnc.sabaib.ui.theme.SabaiBlack
 import com.smnc.sabaib.ui.theme.SabaiGray
 import com.smnc.sabaib.ui.theme.SabaiNavy
@@ -36,9 +37,12 @@ data class RecentGroupUi(
     val status: GroupStatus
 )
 
-val sampleRecentGroups = listOf(
-    RecentGroupUi("1", "Dinner @ Thonglor", 4, 830.0, GroupStatus.ACTIVE),
-    RecentGroupUi("2", "Weekend Trip", 3, 2450.0, GroupStatus.SETTLED)
+fun GroupBillRow.toRecentGroupUi(peopleCount: Int) = RecentGroupUi(
+    id = id,
+    name = restaurantName.orEmpty(),
+    peopleCount = peopleCount,
+    totalAmount = totalAmount,
+    status = if (settledAt == null) GroupStatus.ACTIVE else GroupStatus.SETTLED
 )
 
 @Composable
