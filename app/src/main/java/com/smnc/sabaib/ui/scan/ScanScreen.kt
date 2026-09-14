@@ -9,6 +9,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
@@ -37,8 +38,10 @@ import com.smnc.sabaib.ui.theme.SabaiWhite
 import com.smnc.sabaib.ui.theme.SabaiYellow
 import com.smnc.sabaib.viewmodel.BillViewModel
 import com.smnc.sabaib.util.createScanImageUri
+import com.smnc.sabaib.util.hasSuppressedGeminiConsent
 import com.smnc.sabaib.util.loadRotatedBitmap
 import com.smnc.sabaib.util.recognizeTextFrom
+import com.smnc.sabaib.util.suppressGeminiConsent
 import kotlinx.coroutines.launch
 
 private enum class ScanState {
@@ -63,6 +66,7 @@ fun ScanScreen(
     var previewBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
+    var showGeminiConsentDialog by remember { mutableStateOf(false) }
 
     fun loadImage(uri: Uri) {
         coroutineScope.launch {
@@ -342,7 +346,11 @@ fun ScanScreen(
 
                     Button(
                         onClick = {
-                            previewBitmap?.let { bitmap -> confirmImage(bitmap) }
+                            if (hasSuppressedGeminiConsent(context)) {
+                                previewBitmap?.let { bitmap -> confirmImage(bitmap) }
+                            } else {
+                                showGeminiConsentDialog = true
+                            }
                         },
                         colors = ButtonDefaults.buttonColors(
                             containerColor = SabaiYellow,
@@ -440,4 +448,56 @@ fun ScanScreen(
             }
         }
     }
+
+    if (showGeminiConsentDialog) {
+        GeminiConsentDialog(
+            onAgree = { dontShowAgain ->
+                showGeminiConsentDialog = false
+                if (dontShowAgain) suppressGeminiConsent(context)
+                previewBitmap?.let { bitmap -> confirmImage(bitmap) }
+            },
+            onDismiss = { showGeminiConsentDialog = false }
+        )
+    }
+}
+
+@Composable
+private fun GeminiConsentDialog(
+    onAgree: (dontShowAgain: Boolean) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var dontShowAgain by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Scan with Gemini") },
+        text = {
+            Column {
+                Text("We'll use Google Gemini to scan and read the items on this receipt. Do you agree?")
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.clickable { dontShowAgain = !dontShowAgain }
+                ) {
+                    Checkbox(
+                        checked = dontShowAgain,
+                        onCheckedChange = { dontShowAgain = it }
+                    )
+                    Text("Don't show this again")
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onAgree(dontShowAgain) }) {
+                Text("Agree")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }

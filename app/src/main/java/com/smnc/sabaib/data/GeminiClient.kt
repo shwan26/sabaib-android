@@ -34,14 +34,14 @@ object GeminiClient {
 
     // A floating alias (rather than a pinned version like "gemini-3-flash")
     // so this keeps working as Google retires specific model versions.
-    private const val MODEL = "gemini-3.8-flash"
+    private const val MODEL = "gemini-3.5-flash-lite"
     private const val ENDPOINT =
         "https://generativelanguage.googleapis.com/v1beta/models/$MODEL:generateContent"
 
     // Gemini occasionally returns 503 (model overloaded) or 429 (rate limited)
     // for reasons unrelated to the request itself - these are worth a couple
     // of quick retries before giving up and falling back to on-device OCR.
-    private const val MAX_ATTEMPTS = 3
+    private const val MAX_ATTEMPTS = 1
     private val retryableStatuses = setOf(
         HttpStatusCode.ServiceUnavailable,
         HttpStatusCode.TooManyRequests
