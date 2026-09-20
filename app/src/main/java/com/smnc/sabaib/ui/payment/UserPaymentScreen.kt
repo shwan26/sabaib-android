@@ -56,12 +56,16 @@ fun UserPaymentScreen(
     onBack: () -> Unit,
     onDone: () -> Unit,
     onUndo: () -> Unit,
-    onBackToHome: () -> Unit
+    onBackToHome: () -> Unit,
+    // True for a participant viewing their own payment - they can see
+    // their amount/QR and whether the host has marked them paid, but only
+    // the host (via the full list in PaymentScreen) can toggle that status.
+    readOnly: Boolean = false
 ) {
 
+    val bill by billViewModel.bill
     val participants by billViewModel.participants
     val paidStatus by billViewModel.paidStatus
-    val promptPayNumber by billViewModel.promptPayNumber
 
     val participant = participants.find { it.id == participantId }
     val total = billViewModel
@@ -72,7 +76,7 @@ fun UserPaymentScreen(
     val isPaid = paidStatus[participantId] == true
     val name = participant?.name ?: "Participant"
     val amountText = "%.0f".format(total)
-    val qrUrl = "https://promptpay.io/$promptPayNumber/$amountText.png"
+    val qrUrl = bill.promptPayQrUrl
 
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -80,7 +84,7 @@ fun UserPaymentScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("$name's Payment") },
+                title = { Text(if (readOnly) "Your Payment" else "$name's Payment") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
@@ -102,7 +106,11 @@ fun UserPaymentScreen(
 
             if (!isPaid) {
                 Text(
-                    text = "Scan this QR code to receive money.",
+                    text = if (qrUrl != null) {
+                        "Scan this QR code to receive money."
+                    } else {
+                        "Host hasn't added a PromptPay QR yet - arrange payment with them directly."
+                    },
                     style = MaterialTheme.typography.bodySmall
                 )
 
@@ -122,7 +130,7 @@ fun UserPaymentScreen(
                         fontWeight = FontWeight.Bold,
                         style = MaterialTheme.typography.headlineSmall
                     )
-                } else {
+                } else if (qrUrl != null) {
                     var qrState by remember {
                         mutableStateOf<AsyncImagePainter.State>(AsyncImagePainter.State.Empty)
                     }
@@ -156,10 +164,24 @@ fun UserPaymentScreen(
                         fontWeight = FontWeight.Bold,
                         style = MaterialTheme.typography.headlineMedium
                     )
+                } else {
+                    Text(
+                        text = "No QR code yet",
+                        color = SabaiGray,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text(
+                        text = "฿$amountText",
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.headlineMedium
+                    )
                 }
             }
 
-            if (!isPaid) {
+            if (!isPaid && qrUrl != null) {
                 Spacer(modifier = Modifier.height(16.dp))
 
                 OutlinedButton(
@@ -200,10 +222,11 @@ fun UserPaymentScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = if (isPaid) {
-                    "Tapped by mistake? Tap \"Undo\" to revert."
-                } else {
-                    "Once you received payment, tap \"Done\"."
+                text = when {
+                    readOnly && isPaid -> "The host has marked this as paid."
+                    readOnly -> "The host will mark this as paid once they receive it."
+                    isPaid -> "Tapped by mistake? Tap \"Undo\" to revert."
+                    else -> "Once you received payment, tap \"Done\"."
                 },
                 color = SabaiGray,
                 style = MaterialTheme.typography.bodySmall
@@ -225,27 +248,29 @@ fun UserPaymentScreen(
                     Text("Back to Home")
                 }
 
-                if (isPaid) {
-                    OutlinedButton(
-                        onClick = onUndo,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(56.dp)
-                    ) {
-                        Text("Undo", fontWeight = FontWeight.Bold)
-                    }
-                } else {
-                    Button(
-                        onClick = onDone,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = SabaiYellow,
-                            contentColor = SabaiBlack
-                        ),
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(56.dp)
-                    ) {
-                        Text("Done", fontWeight = FontWeight.Bold)
+                if (!readOnly) {
+                    if (isPaid) {
+                        OutlinedButton(
+                            onClick = onUndo,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(56.dp)
+                        ) {
+                            Text("Undo", fontWeight = FontWeight.Bold)
+                        }
+                    } else {
+                        Button(
+                            onClick = onDone,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = SabaiYellow,
+                                contentColor = SabaiBlack
+                            ),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(56.dp)
+                        ) {
+                            Text("Done", fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }

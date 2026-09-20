@@ -73,7 +73,7 @@ fun BillRoomScreen(
     val bill by billViewModel.bill
     val participants by billViewModel.participants
     val currentParticipantId by billViewModel.currentParticipantId
-    val inviteUrl = "https://sabaib.app/join/${bill.code}"
+    val inviteUrl = "https://sabaib.vercel.app/join/${bill.code}"
     val qrBitmap = remember(inviteUrl) {
         generateQrCode(inviteUrl)
     }
@@ -89,7 +89,10 @@ fun BillRoomScreen(
     }
 
     LaunchedEffect(bill.stage) {
-        if (bill.stage == BillStage.SPLITTING) onContinue()
+        if (bill.stage == BillStage.SPLITTING) {
+            billViewModel.clearOwnReadyForNewStage(currentParticipantId, bill.id)
+            onContinue()
+        }
     }
 
     Scaffold(

@@ -4,6 +4,7 @@ import com.smnc.sabaib.BuildConfig
 import io.github.jan.supabase.annotations.SupabaseInternal
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.createSupabaseClient
+import io.github.jan.supabase.functions.Functions
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.realtime.Realtime
 import io.github.jan.supabase.storage.Storage
@@ -20,6 +21,7 @@ object SupabaseProvider {
         install(Postgrest.Companion)
         install(Realtime.Companion)
         install(Storage.Companion)
+        install(Functions.Companion)
         httpConfig {
             install(HttpTimeout) {
                 requestTimeoutMillis = 15_000

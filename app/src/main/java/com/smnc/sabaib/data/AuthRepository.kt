@@ -27,7 +27,7 @@ class AuthRepository {
     }
 
     suspend fun sendPasswordResetEmail(email: String) {
-        auth.resetPasswordForEmail(email)
+        auth.resetPasswordForEmail(email, redirectUrl = "https://sabaib.vercel.app/reset-password")
     }
 
     fun isLoggedIn(): Boolean {

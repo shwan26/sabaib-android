@@ -5,10 +5,13 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.net.Uri
+import android.util.Base64
 import androidx.core.content.FileProvider
 import androidx.exifinterface.media.ExifInterface
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.InputStream
+import androidx.core.graphics.scale
 
 /**
  * Creates a fresh, empty file under the app's cache dir and returns a
@@ -50,6 +53,33 @@ fun loadRotatedBitmap(context: Context, uri: Uri): Bitmap? {
     return Bitmap.createBitmap(
         bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true
     )
+}
+
+/**
+ * Encodes this bitmap as a base64 JPEG string, suitable for sending as
+ * inline image data to a vision API.
+ *
+ * Downscales first if needed - full camera-resolution photos (often
+ * 10+ MP) make for a slow upload with little benefit to a vision model
+ * reading printed receipt text, and were a real source of request
+ * timeouts.
+ */
+fun Bitmap.toJpegBase64(quality: Int = 85, maxDimension: Int = 1600): String {
+    val scaled = scaledDownTo(maxDimension)
+    val out = ByteArrayOutputStream()
+    scaled.compress(Bitmap.CompressFormat.JPEG, quality, out)
+    return Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
+}
+
+private fun Bitmap.scaledDownTo(maxDimension: Int): Bitmap {
+    val largestSide = maxOf(width, height)
+    if (largestSide <= maxDimension) return this
+
+    val scale = maxDimension.toFloat() / largestSide
+    val newWidth = (width * scale).toInt().coerceAtLeast(1)
+    val newHeight = (height * scale).toInt().coerceAtLeast(1)
+
+    return this.scale(newWidth, newHeight)
 }
 
 private fun readExifRotationDegrees(input: InputStream): Int {

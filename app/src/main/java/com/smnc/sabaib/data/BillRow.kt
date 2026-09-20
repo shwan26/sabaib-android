@@ -26,6 +26,8 @@ data class BillRow(
     // state this explicitly rather than relying on encodeDefaults=false to
     // omit it and fall back to the column default.
     @SerialName("is_split_evenly") val isSplitEvenly: Boolean,
+    @SerialName("split_decided") val splitDecided: Boolean = false,
+    @SerialName("promptpay_qr_url") val promptPayQrUrl: String? = null,
     @SerialName("delete_after")
     @Serializable(with = InstantColumnSerializer::class)
     val deleteAfter: Instant? = null

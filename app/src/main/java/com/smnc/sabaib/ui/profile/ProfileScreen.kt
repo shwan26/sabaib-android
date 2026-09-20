@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.Image
 import com.smnc.sabaib.R
 import com.smnc.sabaib.data.AuthRepository
+import com.smnc.sabaib.ui.components.ProfileMenuRow
 import com.smnc.sabaib.ui.theme.SabaiBlack
 import com.smnc.sabaib.ui.theme.SabaiError
 import com.smnc.sabaib.ui.theme.SabaiGray
@@ -52,13 +53,9 @@ fun ProfileScreen(
 ) {
     val coroutineScope = rememberCoroutineScope()
     val email = authRepository.currentUserEmail()
-    val fallbackName = email
-        ?.substringBefore("@")
-        ?.replaceFirstChar { it.uppercase() }
-        ?: "Guest"
     val uiState by profileViewModel.uiState.collectAsState()
-    val displayName = (uiState as? ProfileUiState.Loaded)?.displayName?.takeIf { it.isNotBlank() }
-        ?: fallbackName
+    val displayName = resolveDisplayName(uiState, email)
+    val isPremium = (uiState as? ProfileUiState.Loaded)?.plan == "premium"
 
     Column(
         modifier = Modifier
@@ -128,12 +125,12 @@ fun ProfileScreen(
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(50))
-                    .background(SabaiLightGray)
+                    .background(if (isPremium) SabaiYellow else SabaiLightGray)
                     .padding(horizontal = 12.dp, vertical = 5.dp)
             ) {
                 Text(
-                    text = "FREE PLAN",
-                    color = SabaiGray,
+                    text = if (isPremium) "SABAIB+" else "FREE PLAN",
+                    color = if (isPremium) SabaiBlack else SabaiGray,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -153,7 +150,7 @@ fun ProfileScreen(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "Upgrade to Sabai+",
+                    text = "Upgrade to SabaiB+",
                     color = SabaiBlack,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
@@ -199,32 +196,5 @@ fun ProfileScreen(
         }
 
         Spacer(modifier = Modifier.height(24.dp))
-    }
-}
-
-@Composable
-private fun ProfileMenuRow(
-    label: String,
-    onClick: () -> Unit,
-    labelColor: androidx.compose.ui.graphics.Color = SabaiBlack,
-    showArrow: Boolean = true
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 18.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = label,
-            color = labelColor,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Medium,
-            modifier = Modifier.weight(1f)
-        )
-        if (showArrow) {
-            Text(text = "→", color = SabaiGray, fontSize = 16.sp)
-        }
     }
 }

@@ -22,5 +22,13 @@ data class Bill(
 
     val isSplitEvenly: Boolean = false,
 
+    // Whether the host has made the evenly-vs-by-item call yet. Item taps
+    // and the split-evenly toggle are both locked out for everyone until
+    // this flips true, so no one can start claiming dishes before the host
+    // has decided how the bill is being split at all.
+    val splitDecided: Boolean = false,
+
+    val promptPayQrUrl: String? = null,
+
     val stage: BillStage = BillStage.WAITING
 )
