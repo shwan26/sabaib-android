@@ -55,14 +55,14 @@ fun EditableReceiptItem(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 OutlinedTextField(
-                    value = item.thaiName,
+                    value = item.originalName,
                     onValueChange = {
                         onItemChange(
-                            item.copy(thaiName = it)
+                            item.copy(originalName = it)
                         )
                     },
                     label = {
-                        Text("Thai name")
+                        Text("Original name")
                     },
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -157,9 +157,9 @@ fun EditableReceiptItem(
                             fontWeight = FontWeight.SemiBold
                         )
 
-                        if (item.thaiName.isNotBlank()) {
+                        if (item.originalName.isNotBlank()) {
                             Text(
-                                text = item.thaiName,
+                                text = item.originalName,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = SabaiGray
                             )

@@ -70,7 +70,7 @@ object ReceiptParser {
 
         return ReceiptItem(
             id = UUID.randomUUID().toString(),
-            thaiName = "",
+            originalName = "",
             englishName = namePart,
             quantity = quantity,
             price = price

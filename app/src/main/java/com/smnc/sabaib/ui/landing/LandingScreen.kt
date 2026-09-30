@@ -64,7 +64,7 @@ fun LandingScreen(onGetStarted: () -> Unit) {
         Spacer(modifier = Modifier.height(24.dp))
 
         Text(
-            text = "Split the bill with Thai to Eng translation.\nSplit Bill not Mood",
+            text = "Split the bill with any-language to English translation.\nSplit Bill not Mood",
             color = SabaiGray,
             fontSize = 15.sp,
             textAlign = TextAlign.Center
