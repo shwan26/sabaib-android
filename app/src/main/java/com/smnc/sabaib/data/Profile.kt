@@ -30,5 +30,6 @@ data class Profile(
     @SerialName("free_scans_reset_at")
     @Serializable(with = InstantColumnSerializer::class)
     val freeScansResetAt: Instant? = null,
-    val plan: String = "free"
+    val plan: String = "free",
+    @SerialName("birth_year") val birthYear: Int? = null
 )

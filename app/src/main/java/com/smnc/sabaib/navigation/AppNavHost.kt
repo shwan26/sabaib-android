@@ -18,6 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -56,6 +57,7 @@ import com.smnc.sabaib.ui.settings.SettingsScreen
 import com.smnc.sabaib.ui.split.SplitScreen
 import com.smnc.sabaib.ui.theme.SabaiOffWhite
 import com.smnc.sabaib.ui.theme.SabaiYellow
+import com.smnc.sabaib.util.ProfilePrefs
 import com.smnc.sabaib.viewmodel.BillViewModel
 import io.github.jan.supabase.auth.status.SessionStatus
 import kotlinx.coroutines.flow.first
@@ -75,6 +77,7 @@ fun AppNavHost() {
     val authRepository = remember { AuthRepository() }
     val billingRepository = remember { BillingRepository() }
     val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     val onGroupClick: (RecentGroupUi) -> Unit = { group ->
         coroutineScope.launch {
@@ -94,7 +97,12 @@ fun AppNavHost() {
         authRepository.sessionStatusFlow().collect { status ->
             when (status) {
                 is SessionStatus.Authenticated -> {
-                    authRepository.currentUserId()?.let { billingRepository.logIn(it) }
+                    authRepository.currentUserId()?.let { userId ->
+                        billingRepository.logIn(userId)
+                        ProfilePrefs.takePendingDisplayName(context)?.let { pendingName ->
+                            profileViewModel.updateDisplayName(pendingName)
+                        }
+                    }
                 }
                 is SessionStatus.NotAuthenticated -> billingRepository.logOut()
                 else -> Unit

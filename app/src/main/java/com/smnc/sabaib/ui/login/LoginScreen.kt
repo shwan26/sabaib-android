@@ -37,6 +37,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
@@ -60,6 +61,7 @@ import com.smnc.sabaib.ui.theme.SabaiLightGray
 import com.smnc.sabaib.ui.theme.SabaiNavy
 import com.smnc.sabaib.ui.theme.SabaiWhite
 import com.smnc.sabaib.ui.theme.SabaiYellow
+import com.smnc.sabaib.util.ProfilePrefs
 import androidx.compose.runtime.collectAsState as collectAsStateSafe
 
 @Composable
@@ -70,9 +72,12 @@ fun LoginScreen(
 ) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var name by remember { mutableStateOf("") }
     var isSignUpMode by remember { mutableStateOf(false) }
+    var birthYear by remember { mutableStateOf("") }
     var agreedToTerms by remember { mutableStateOf(false) }
     var passwordVisible by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     val uiState by viewModel.uiState.collectAsStateSafe()
 
@@ -128,6 +133,23 @@ fun LoginScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
+        if (isSignUpMode) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(text = "Name", color = SabaiBlack, fontSize = 14.sp)
+                Spacer(modifier = Modifier.height(6.dp))
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = fieldColors,
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+
         Column(modifier = Modifier.fillMaxWidth()) {
             Text(text = "Email", color = SabaiBlack, fontSize = 14.sp)
             Spacer(modifier = Modifier.height(6.dp))
@@ -166,6 +188,27 @@ fun LoginScreen(
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
+        }
+
+        if (isSignUpMode) {
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(text = "Year of birth", color = SabaiBlack, fontSize = 14.sp)
+                Spacer(modifier = Modifier.height(6.dp))
+                OutlinedTextField(
+                    value = birthYear,
+                    onValueChange = { input ->
+                        birthYear = input.filter { it.isDigit() }.take(4)
+                    },
+                    placeholder = { Text(text = "e.g. 2000", color = SabaiGray) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = fieldColors,
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         }
 
         if (!isSignUpMode) {
@@ -228,12 +271,13 @@ fun LoginScreen(
             Button(
                 onClick = {
                     if (isSignUpMode) {
-                        viewModel.signUp(email, password)
+                        ProfilePrefs.savePendingDisplayName(context, name.trim())
+                        viewModel.signUp(email, password, name, birthYear)
                     } else {
                         viewModel.signIn(email, password)
                     }
                 },
-                enabled = !isSignUpMode || agreedToTerms,
+                enabled = !isSignUpMode || (agreedToTerms && birthYear.length == 4 && name.isNotBlank()),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = SabaiYellow,
                     contentColor = SabaiBlack
@@ -269,7 +313,11 @@ fun LoginScreen(
                 color = SabaiBlack,
                 fontSize = 14.sp
             )
-            TextButton(onClick = { isSignUpMode = !isSignUpMode }) {
+            TextButton(onClick = {
+                isSignUpMode = !isSignUpMode
+                birthYear = ""
+                name = ""
+            }) {
                 Text(
                     text = if (isSignUpMode) "Log in" else "Create account",
                     color = SabaiNavy,

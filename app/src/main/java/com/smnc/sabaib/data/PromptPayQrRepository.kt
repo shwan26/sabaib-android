@@ -16,5 +16,9 @@ class PromptPayQrRepository {
         }
     }
 
+    suspend fun delete(path: String) {
+        bucket.delete(path)
+    }
+
     fun publicUrl(path: String): String = bucket.publicUrl(path)
 }

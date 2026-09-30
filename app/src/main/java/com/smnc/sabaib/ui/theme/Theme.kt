@@ -2,7 +2,6 @@ package com.smnc.sabaib.ui.theme
 
 import android.app.Activity
 import android.os.Build
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
@@ -77,7 +76,10 @@ private val LightColorScheme = lightColorScheme(
 
 @Composable
 fun SabaiBTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    // Always light: the app doesn't support the system's dark theme, so it
+    // must not follow isSystemInDarkTheme() - that produced mismatched,
+    // sometimes illegible color combinations on phones with dark mode on.
+    darkTheme: Boolean = false,
     // Dynamic color defaults to false so the brand palette (yellow/navy/white)
     // is always used instead of the device wallpaper-derived colors.
     dynamicColor: Boolean = false,
