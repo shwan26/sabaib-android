@@ -143,20 +143,39 @@ class BillViewModel(
         }
     }
 
+    /**
+     * Clears the QR from the bill row first (so guests stop seeing it on
+     * their next poll), then best-effort deletes the image from storage.
+     */
     fun removePromptPayQr(billId: String) {
-        setPromptPayQrUrl(billId, null)
-    }
-
-    private fun setPromptPayQrUrl(billId: String, url: String?) {
-        _bill.value = _bill.value.copy(promptPayQrUrl = url)
-
         viewModelScope.launch {
+            if (!setPromptPayQrUrl(billId, null)) return@launch
+
             runCatching {
-                billRepository.updatePromptPayQrUrl(billId, url)
+                promptPayQrRepository.delete("$billId/qr")
             }.onFailure {
-                Log.e("BillViewModel", "Failed to persist promptpay QR url", it)
+                Log.e("BillViewModel", "Failed to delete promptpay QR image", it)
             }
         }
+    }
+
+    /**
+     * Optimistically applies [url] locally, then persists it. Rolls the
+     * local value back if the write fails so the host never sees a QR
+     * state that guests (who read it from Supabase) don't.
+     */
+    private suspend fun setPromptPayQrUrl(billId: String, url: String?): Boolean {
+        val previous = _bill.value.promptPayQrUrl
+        _bill.value = _bill.value.copy(promptPayQrUrl = url)
+
+        return runCatching {
+            billRepository.updatePromptPayQrUrl(billId, url)
+        }.onFailure {
+            Log.e("BillViewModel", "Failed to persist promptpay QR url", it)
+            if (_bill.value.id == billId) {
+                _bill.value = _bill.value.copy(promptPayQrUrl = previous)
+            }
+        }.isSuccess
     }
 
     fun markParticipantPaid(participantId: String) {

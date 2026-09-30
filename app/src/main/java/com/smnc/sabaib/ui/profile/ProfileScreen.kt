@@ -139,33 +139,35 @@ fun ProfileScreen(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
-                .background(SabaiYellow)
-                .clickable(onClick = onUpgradeClick)
-                .padding(horizontal = 20.dp, vertical = 18.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Upgrade to SabaiB+",
-                    color = SabaiBlack,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = "Unlimited scans & more",
-                    color = SabaiBlack,
-                    fontSize = 13.sp
-                )
+        if (!isPremium) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(SabaiYellow)
+                    .clickable(onClick = onUpgradeClick)
+                    .padding(horizontal = 20.dp, vertical = 18.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Upgrade to SabaiB+",
+                        color = SabaiBlack,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "Unlimited scans & more",
+                        color = SabaiBlack,
+                        fontSize = 13.sp
+                    )
+                }
+                Text(text = "→", color = SabaiBlack, fontSize = 20.sp, fontWeight = FontWeight.Bold)
             }
-            Text(text = "→", color = SabaiBlack, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-        }
 
-        Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(20.dp))
+        }
 
         Column(
             modifier = Modifier

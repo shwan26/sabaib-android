@@ -40,3 +40,4 @@ Thumbs.db
 # Logs and temporary files
 *.log
 *.tmp
+/app/release/

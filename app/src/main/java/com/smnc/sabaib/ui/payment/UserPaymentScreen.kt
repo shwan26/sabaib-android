@@ -24,6 +24,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -46,7 +47,9 @@ import com.smnc.sabaib.ui.theme.SabaiSuccess
 import com.smnc.sabaib.ui.theme.SabaiYellow
 import com.smnc.sabaib.util.shareQrCode
 import com.smnc.sabaib.viewmodel.BillViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.time.Duration.Companion.milliseconds
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -80,6 +83,16 @@ fun UserPaymentScreen(
 
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+
+    // The host typically adds/changes/removes the QR after guests have
+    // already landed here, so keep pulling it rather than relying on the
+    // snapshot taken on earlier screens.
+    LaunchedEffect(bill.id) {
+        while (true) {
+            billViewModel.pollBillState(bill.id)
+            delay(1000.milliseconds)
+        }
+    }
 
     Scaffold(
         topBar = {
