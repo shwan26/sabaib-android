@@ -123,8 +123,8 @@ class BillRepository {
 
     private fun ReceiptItem.toReceiptItemRow(billId: String) = ReceiptItemRow(
         billId = billId,
-        originalName = thaiName.ifBlank { englishName },
-        translatedName = englishName.takeIf { thaiName.isNotBlank() },
+        originalName = originalName.ifBlank { englishName },
+        translatedName = englishName.takeIf { originalName.isNotBlank() },
         quantity = quantity.toDouble(),
         unitPrice = price,
         totalPrice = price * quantity
@@ -132,7 +132,7 @@ class BillRepository {
 
     private fun ReceiptItemRow.toReceiptItem() = ReceiptItem(
         id = id ?: UUID.randomUUID().toString(),
-        thaiName = if (translatedName != null) originalName else "",
+        originalName = if (translatedName != null) originalName else "",
         englishName = translatedName ?: originalName,
         quantity = quantity.toInt(),
         price = unitPrice

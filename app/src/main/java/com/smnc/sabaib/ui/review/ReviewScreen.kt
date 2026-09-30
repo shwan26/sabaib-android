@@ -189,7 +189,7 @@ fun ReviewScreen(
 
                             val newItem = ReceiptItem(
                                 id = System.currentTimeMillis().toString(),
-                                thaiName = "",
+                                originalName = "",
                                 englishName = "New item",
                                 quantity = 1,
                                 price = 0.0
