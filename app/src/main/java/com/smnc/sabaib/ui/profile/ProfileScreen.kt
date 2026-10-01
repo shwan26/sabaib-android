@@ -175,6 +175,8 @@ fun ProfileScreen(
                 .clip(RoundedCornerShape(20.dp))
                 .background(SabaiWhite)
         ) {
+            ProfileMenuRow(label = "Manage subscription", onClick = onUpgradeClick)
+            HorizontalDivider(color = SabaiOffWhite, thickness = 1.dp)
             ProfileMenuRow(label = "Payment History", onClick = onPaymentHistoryClick)
             HorizontalDivider(color = SabaiOffWhite, thickness = 1.dp)
             ProfileMenuRow(label = "Settings", onClick = onSettingsClick)

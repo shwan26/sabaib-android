@@ -42,6 +42,8 @@ class PaywallViewModel(
         loadOffering()
     }
 
+    fun currentUserId(): String? = authRepository.currentUserId()
+
     fun loadOffering() {
         _uiState.value = PaywallUiState.Loading
         viewModelScope.launch {

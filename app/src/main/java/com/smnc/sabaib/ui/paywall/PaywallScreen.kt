@@ -1,10 +1,15 @@
 package com.smnc.sabaib.ui.paywall
 
 import android.app.Activity
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,14 +25,21 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -39,14 +51,17 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.revenuecat.purchases.Package
+import com.smnc.sabaib.BuildConfig
 import com.smnc.sabaib.R
 import com.smnc.sabaib.data.ProfileRepository
+import com.smnc.sabaib.ui.components.ConfirmDialog
 import com.smnc.sabaib.ui.profile.ProfileUiState
 import com.smnc.sabaib.ui.profile.ProfileViewModel
 import com.smnc.sabaib.ui.theme.SabaiBlack
 import com.smnc.sabaib.ui.theme.SabaiError
 import com.smnc.sabaib.ui.theme.SabaiGray
 import com.smnc.sabaib.ui.theme.SabaiLightGray
+import com.smnc.sabaib.ui.theme.SabaiNavy
 import com.smnc.sabaib.ui.theme.SabaiOffWhite
 import com.smnc.sabaib.ui.theme.SabaiWhite
 import com.smnc.sabaib.ui.theme.SabaiYellow
@@ -63,6 +78,18 @@ private const val TERMS_URL = "https://sabaib.vercel.app/terms"
 private const val PRIVACY_URL = "https://sabaib.vercel.app/privacy"
 private const val MANAGE_SUBSCRIPTION_URL =
     "https://play.google.com/store/account/subscriptions?package=com.smnc.sabaib"
+private const val SUPPORT_EMAIL = "support@shwan.me"
+private const val SUPPORT_MESSAGE_MAX_LENGTH = 1000
+private val SUPPORT_TOPICS = listOf("Billing", "Bug", "Feature request", "Other")
+
+/**
+ * Play doesn't let apps cancel a subscription client-side, so "cancel" deep-links to the
+ * Play page for this SKU. RevenueCat product ids on Play look like "sku:base-plan".
+ */
+private fun cancelSubscriptionUrl(productId: String?): String =
+    productId?.substringBefore(':')?.takeIf { it.isNotBlank() }
+        ?.let { "https://play.google.com/store/account/subscriptions?sku=$it&package=com.smnc.sabaib" }
+        ?: MANAGE_SUBSCRIPTION_URL
 
 @Composable
 fun PaywallScreen(
@@ -76,6 +103,8 @@ fun PaywallScreen(
     val context = LocalContext.current
     val activity = context as? Activity
     val uriHandler = LocalUriHandler.current
+    var showCancelDialog by rememberSaveable { mutableStateOf(false) }
+    var showSupportDialog by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(uiState) {
         if (uiState is PaywallUiState.PurchaseSuccess) {
@@ -186,10 +215,23 @@ fun PaywallScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             when {
-                isPremium -> PrimaryButton(
-                    text = "Manage subscription",
-                    onClick = { uriHandler.openUri(MANAGE_SUBSCRIPTION_URL) }
-                )
+                isPremium -> {
+                    PrimaryButton(
+                        text = "Manage subscription",
+                        onClick = { uriHandler.openUri(MANAGE_SUBSCRIPTION_URL) }
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Cancel subscription",
+                        color = SabaiError,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(50))
+                            .clickable { showCancelDialog = true }
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    )
+                }
 
                 uiState is PaywallUiState.PurchaseSuccess -> Unit
 
@@ -218,9 +260,150 @@ fun PaywallScreen(
                 FooterLink("Terms") { uriHandler.openUri(TERMS_URL) }
                 FooterDot()
                 FooterLink("Privacy") { uriHandler.openUri(PRIVACY_URL) }
+                FooterDot()
+                FooterLink("Help") { showSupportDialog = true }
             }
         }
     }
+
+    if (showCancelDialog) {
+        ConfirmDialog(
+            title = "Cancel SabaiB+?",
+            message = "You'll keep unlimited scans until the end of your current billing period. " +
+                "You'll finish cancelling in Google Play.",
+            confirmLabel = "Continue",
+            onConfirm = {
+                showCancelDialog = false
+                uriHandler.openUri(cancelSubscriptionUrl(monthly?.product?.id))
+            },
+            onDismiss = { showCancelDialog = false }
+        )
+    }
+
+    if (showSupportDialog) {
+        SupportDialog(
+            plan = if (isPremium) "premium" else "free",
+            userId = paywallViewModel.currentUserId(),
+            onDismiss = { showSupportDialog = false }
+        )
+    }
+}
+
+@Composable
+private fun SupportDialog(plan: String, userId: String?, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    var topic by rememberSaveable { mutableStateOf(SUPPORT_TOPICS.first()) }
+    var message by rememberSaveable { mutableStateOf("") }
+    var error by rememberSaveable { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = SabaiWhite,
+        title = { Text("Contact support", fontWeight = FontWeight.Bold) },
+        text = {
+            Column {
+                Text(
+                    text = "Report a problem or ask about your subscription. We'll reply by email.",
+                    color = SabaiGray,
+                    fontSize = 13.sp
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    SUPPORT_TOPICS.forEach { option ->
+                        TopicChip(
+                            label = option,
+                            selected = option == topic,
+                            onClick = { topic = option }
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = message,
+                    onValueChange = {
+                        message = it.take(SUPPORT_MESSAGE_MAX_LENGTH)
+                        error = null
+                    },
+                    placeholder = { Text("Describe the issue…") },
+                    minLines = 4,
+                    maxLines = 8,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = SabaiNavy,
+                        unfocusedBorderColor = SabaiLightGray,
+                        focusedContainerColor = SabaiWhite,
+                        unfocusedContainerColor = SabaiWhite
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Text(
+                    text = "${message.length} / $SUPPORT_MESSAGE_MAX_LENGTH",
+                    color = SabaiGray,
+                    fontSize = 11.sp,
+                    textAlign = TextAlign.End,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp)
+                )
+                error?.let {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(text = it, color = SabaiError, fontSize = 12.sp)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = message.isNotBlank(),
+                onClick = {
+                    val body = buildString {
+                        appendLine(message.trim())
+                        appendLine()
+                        appendLine("---")
+                        appendLine("App version: ${BuildConfig.VERSION_NAME}")
+                        appendLine("Android: ${Build.VERSION.RELEASE} (${Build.MANUFACTURER} ${Build.MODEL})")
+                        appendLine("Plan: $plan")
+                        userId?.let { appendLine("User ID: $it") }
+                    }
+                    val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:")).apply {
+                        putExtra(Intent.EXTRA_EMAIL, arrayOf(SUPPORT_EMAIL))
+                        putExtra(Intent.EXTRA_SUBJECT, "SabaiB support: $topic")
+                        putExtra(Intent.EXTRA_TEXT, body)
+                    }
+                    try {
+                        context.startActivity(intent)
+                        onDismiss()
+                    } catch (e: ActivityNotFoundException) {
+                        error = "No email app found. Email us at $SUPPORT_EMAIL."
+                    }
+                }
+            ) {
+                Text("Send", fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+private fun TopicChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    Text(
+        text = label,
+        color = SabaiBlack,
+        fontSize = 13.sp,
+        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(if (selected) SabaiYellow else SabaiOffWhite)
+            .border(1.dp, if (selected) SabaiYellow else SabaiLightGray, RoundedCornerShape(50))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+    )
 }
 
 @Composable
@@ -373,7 +556,7 @@ private fun PremiumActiveCard(justPurchased: Boolean = false) {
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = if (justPurchased) "Thanks for subscribing. Enjoy unlimited scans." else "Unlimited scans are unlocked.",
+            text = if (justPurchased) "Thanks for subscribing. Enjoy unlimited scans." else "Unlimited scans are unlocked. Cancel anytime.",
             color = SabaiBlack,
             fontSize = 13.sp,
             textAlign = TextAlign.Center
